@@ -1,0 +1,18 @@
+[
+    {
+        "id":1,
+        "firstName":"zaki",
+        "lastName":"karim",
+        "age":18,
+        "email":"ismail@gmail.com",
+        "profession":["doctor"]
+    },
+    {
+        "id":2,
+        "firstName":"smail",
+        "lastName":"benhasir",
+        "age":18,
+        "email":"ismail@gmail.com",
+        "profession":["doctor"]
+    }
+]
