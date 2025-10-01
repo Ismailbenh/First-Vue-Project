@@ -12,8 +12,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "mysql": "^2.18.1",
+    "mysql2": "^3.14.3",
+    "pinia": "^3.0.3",
+    "sqlite3": "^5.1.7",
+    "uuid": "^11.1.0",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },
