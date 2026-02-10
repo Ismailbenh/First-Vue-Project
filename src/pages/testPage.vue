@@ -260,6 +260,7 @@
 <script>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
   name: 'TestPage',
@@ -659,7 +660,9 @@ export default {
       }
     }
 
+    const auth = useAuthStore()
     const handleLogout = () => {
+      try { auth.logout() } catch (e) { /* ignore */ }
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
       localStorage.removeItem('userRole')

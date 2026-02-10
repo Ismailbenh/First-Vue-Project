@@ -11,7 +11,17 @@ import fs from 'fs';
 import bcrypt from 'bcrypt';
 import { hash } from 'crypto';
 
-dotenv.config();
+// Resolve __dirname for ESM and load .env relative to the backend directory (or project root)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Attempt to load .env from the project src folder first, then fall back to default
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+}
 
 const hashPassword = async (password) => {
   const saltRounds = 10;
@@ -308,6 +318,7 @@ app.get('/api/debug/group/:groupId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 app.post('/api/addProfile', async (req, res) => {
     let connection;
     
@@ -531,7 +542,12 @@ app.post('/api/login', async (req, res) => {
     console.log('Comparing passwords...');
     console.log('Plain password:', password);
     console.log('Stored hash:', user.password);
-    
+    // Guard: ensure stored password is a string
+    if (!user.password || typeof user.password !== 'string') {
+      console.error('Stored password hash is invalid for user:', user.id);
+      return res.status(500).json({ success: false, message: 'Server error: invalid stored password' });
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
     console.log('Password valid:', isPasswordValid);
     
@@ -580,7 +596,8 @@ app.post('/api/login', async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: error.message || 'Server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   } finally {
     if (connection) connection.release();
@@ -1244,6 +1261,128 @@ app.post('/api/rooms/:roomId/groups', async (req, res) => {
     connection.release();
   }
 });
+
+app.get('/api/profiles/unassigned', async (req, res) => {
+  try {
+    const [profiles] = await pool.query(`
+      SELECT p.* 
+      FROM profiles p
+      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id
+      WHERE pgm.profile_id IS NULL
+      ORDER BY p.firstName, p.lastName
+    `);
+    
+    res.json(profiles);
+  } catch (error) {
+    console.error('Error fetching unassigned profiles:', error);
+    res.status(500).json({ success: false, message: 'Database error' });
+  }
+});
+
+app.get('/api/profiles/available', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT p.* 
+      FROM profiles p
+      LEFT JOIN profile_room_members prm ON p.id = prm.profile_id
+      WHERE prm.profile_id IS NULL
+      ORDER BY p.firstName, p.lastName
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching available profiles:', error);
+    res.status(500).json({ success: false, message: 'Database error' });
+  }
+});
+
+app.get('/api/profiles/available-for-group/:groupId', async (req, res) => {
+  try {
+    const [profiles] = await pool.query(`
+      SELECT DISTINCT p.* 
+      FROM profiles p
+      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id AND pgm.group_id != ?
+      WHERE pgm.profile_id IS NULL OR p.id IN (
+        SELECT profile_id FROM profile_group_members WHERE group_id = ?
+      )
+      ORDER BY p.firstName, p.lastName
+    `, [req.params.groupId, req.params.groupId]);
+    
+    res.json(profiles);
+  } catch (error) {
+    console.error('Error fetching available profiles for group:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch available profiles' });
+  }
+});
+// Get profiles not in any room (available for assignment) - MOVE THIS UP
+
+// Get all profiles for selection
+app.get('/api/profiles/unassigned', async (req, res) => {
+  try {
+    // Get all profiles with their current groups and professions
+    const [profiles] = await pool.query(`
+      SELECT DISTINCT p.*, 
+             GROUP_CONCAT(DISTINCT pg.name) as groups,
+             GROUP_CONCAT(DISTINCT prof.name) as professions
+      FROM profiles p
+      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id
+      LEFT JOIN profile_groups pg ON pgm.group_id = pg.id
+      LEFT JOIN profile_profession_members ppm ON p.id = ppm.profile_id
+      LEFT JOIN professions prof ON ppm.profession_id = prof.id
+      GROUP BY p.id
+      ORDER BY p.firstName, p.lastName
+    `);
+
+    // Transform the results
+    const transformedProfiles = profiles.map(profile => ({
+      ...profile,
+      groups: profile.groups ? profile.groups.split(',') : [],
+      professions: profile.professions ? profile.professions.split(',') : []
+    }));
+
+    res.json(transformedProfiles);
+  } catch (error) {
+    console.error('Error fetching available profiles:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch available profiles'
+    });
+  }
+});
+
+// Get all profiles that can be added to groups
+app.get('/api/profiles/unassigned', async (req, res) => {
+  try {
+    // Get all profiles with their current groups
+    const [profiles] = await pool.query(`
+      SELECT DISTINCT p.*, 
+             GROUP_CONCAT(DISTINCT pg.name) as groups,
+             GROUP_CONCAT(DISTINCT prof.name) as professions
+      FROM profiles p
+      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id
+      LEFT JOIN profile_groups pg ON pgm.group_id = pg.id
+      LEFT JOIN profile_profession_members ppm ON p.id = ppm.profile_id
+      LEFT JOIN professions prof ON ppm.profession_id = prof.id
+      GROUP BY p.id
+      ORDER BY p.firstName, p.lastName
+    `);
+
+    // Transform the results
+    const transformedProfiles = profiles.map(profile => ({
+      ...profile,
+      groups: profile.groups ? profile.groups.split(',') : [],
+      professions: profile.professions ? profile.professions.split(',') : []
+    }));
+
+    res.json(transformedProfiles);
+  } catch (error) {
+    console.error('Error fetching available profiles:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch available profiles'
+    });
+  }
+});
+
 // Get all profiles
 // Replace your existing GET /api/profiles endpoint with this corrected version
 app.get('/api/profiles', async (req, res) => {
@@ -1989,7 +2128,18 @@ app.post('/api/assignRooms', async (req, res) => {
 
 // ===== GROUP MANAGEMENT (Existing functionality) =====
 
-// Get all groups
+// Get all subjects
+app.get('/api/subjects', async (req, res) => {
+  try {
+    const [subjects] = await pool.query('SELECT * FROM subjects ORDER BY name');
+    res.json(subjects);
+  } catch (error) {
+    console.error('Error getting subjects:', error);
+    res.status(500).json({ error: 'Failed to get subjects' });
+  }
+});
+
+// Get all groups with their subjects
 app.get('/api/groups', async (req, res) => {
   try {
     // Get all groups with correct member counts
@@ -2009,6 +2159,86 @@ app.get('/api/groups', async (req, res) => {
     res.status(500).json({ success: false, message: 'Database error' });
   }
 });
+app.get('/api/groups/:groupId/subjects', async (req, res) => {
+  try {
+    const [subjects] = await pool.query(`
+      SELECT s.* 
+      FROM subjects s
+      INNER JOIN group_subjects gs ON s.id = gs.subject_id
+      WHERE gs.group_id = ?
+      ORDER BY s.name
+    `, [req.params.groupId]);
+    
+    res.json(subjects);
+  } catch (error) {
+    console.error('Error fetching group subjects:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch group subjects' });
+  }
+});
+app.put('/api/groups/:groupId', async (req, res) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { groupId } = req.params;
+    const { name, description, subjectIds = [], profileIds = [] } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Group name is required' });
+    }
+
+    if (!subjectIds || subjectIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one subject must be selected' });
+    }
+
+    await connection.beginTransaction();
+
+    // Update group basic info
+    await connection.query(
+      'UPDATE profile_groups SET name = ?, description = ? WHERE id = ?',
+      [name.trim(), description?.trim() || null, groupId]
+    );
+
+    // Delete existing subjects
+    await connection.query('DELETE FROM group_subjects WHERE group_id = ?', [groupId]);
+
+    // Insert new subjects
+    for (const subjectId of subjectIds) {
+      const gsId = 'gs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      await connection.query(
+        'INSERT INTO group_subjects (id, group_id, subject_id) VALUES (?, ?, ?)',
+        [gsId, groupId, subjectId]
+      );
+    }
+
+    // Delete existing members
+    await connection.query('DELETE FROM profile_group_members WHERE group_id = ?', [groupId]);
+
+    // Insert new members
+    for (const profileId of profileIds) {
+      const memberId = 'pgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      await connection.query(
+        'INSERT INTO profile_group_members (id, group_id, profile_id) VALUES (?, ?, ?)',
+        [memberId, groupId, profileId]
+      );
+    }
+
+    await connection.commit();
+
+    res.json({ 
+      success: true, 
+      message: 'Group updated successfully',
+      group: { id: groupId, name, description, memberCount: profileIds.length }
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error updating group:', error);
+    res.status(500).json({ success: false, message: 'Failed to update group' });
+  } finally {
+    connection.release();
+  }
+});
+
 // Get single group with members
 app.get('/api/groups/:id', async (req, res) => {
   try {
@@ -2175,13 +2405,18 @@ app.delete('/api/rooms/:roomId/groups/:groupId', async (req, res) => {
     connection.release();
   }
 });
+// Add this new endpoint in your backend (server.js)
+
+// Add endpoint to get available profiles for a specific group (for editing)
+
 // Create new group
 app.post('/api/groups', async (req, res) => {
   const connection = await pool.getConnection();
   
   try {
-    const { name, description, profileIds = [] } = req.body; // Make profileIds optional with default empty array
+    const { name, description, profileIds = [], subjectIds = [] } = req.body;
 
+    // Validate group name
     if (!name || !name.trim()) {
       return res.status(400).json({ 
         success: false, 
@@ -2189,27 +2424,56 @@ app.post('/api/groups', async (req, res) => {
       });
     }
 
+    // Validate subjects
+    if (!subjectIds || !Array.isArray(subjectIds) || subjectIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'At least one subject must be selected' 
+      });
+    }
+
     await connection.beginTransaction();
 
-    const groupId = uuidv4();
+    // Verify all subjects exist
+    const placeholders = subjectIds.map(() => '?').join(',');
+    const [subjectRows] = await connection.query(
+      `SELECT id FROM subjects WHERE id IN (${placeholders})`,
+      subjectIds
+    );
 
-    // Create the group (no longer requires profiles)
+    if (subjectRows.length !== subjectIds.length) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'One or more invalid subject IDs provided' 
+      });
+    }
+
+    // Create the group
+    const groupId = uuidv4();
     await connection.query(
       'INSERT INTO profile_groups (id, name, description) VALUES (?, ?, ?)',
       [groupId, name.trim(), description?.trim() || null]
     );
 
-    // Add members to the group only if profileIds are provided
+    // **THIS WAS MISSING** - Insert subjects for the group
+    for (const subjectId of subjectIds) {
+      const gsId = 'gs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      await connection.query(
+        'INSERT INTO group_subjects (id, group_id, subject_id) VALUES (?, ?, ?)',
+        [gsId, groupId, subjectId]
+      );
+    }
+
+    // Add members to the group if provided
     if (profileIds.length > 0) {
-      const memberPromises = profileIds.map(profileId => {
+      for (const profileId of profileIds) {
         const memberId = uuidv4();
-        return connection.query(
+        await connection.query(
           'INSERT INTO profile_group_members (id, group_id, profile_id) VALUES (?, ?, ?)',
           [memberId, groupId, profileId]
         );
-      });
-
-      await Promise.all(memberPromises);
+      }
     }
 
     await connection.commit();
@@ -2221,7 +2485,8 @@ app.post('/api/groups', async (req, res) => {
         id: groupId,
         name: name.trim(),
         description: description?.trim() || null,
-        memberCount: profileIds.length
+        memberCount: profileIds.length,
+        subjectCount: subjectIds.length
       }
     });
 
@@ -2236,11 +2501,18 @@ app.post('/api/groups', async (req, res) => {
       });
     }
     
-    res.status(500).json({ success: false, message: 'Database error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error: ' + error.message 
+    });
   } finally {
     connection.release();
   }
 });
+// Get unassigned profiles (profiles not in any group)
+
+
+// Get profiles available for a specific group (unassigned + current group members)
 
 // Delete group
 app.delete('/api/groups/:id', async (req, res) => {

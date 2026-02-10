@@ -1,3 +1,95 @@
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+import { useGroupsStore } from '@/stores/groups'
+
+const email = ref('');
+const password = ref('');
+const loading = ref(false);
+const errorMessage = ref('');
+const emailError = ref('');
+const passwordError = ref('');
+const router = useRouter();
+const auth = useAuthStore();
+const groupsStore = useGroupsStore()
+
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function validateEmail() {
+  if (!email.value) {
+    emailError.value = 'Email is required';
+  } else if (!isValidEmail(email.value)) {
+    emailError.value = 'Please enter a valid email address';
+  } else {
+    emailError.value = '';
+  }
+}
+
+function validatePassword() {
+  if (!password.value) {
+    passwordError.value = 'Password is required';
+  } else if (password.value.length < 3) { // Adjust minimum length as needed
+    passwordError.value = 'Password is too short';
+  } else {
+    passwordError.value = '';
+  }
+}
+
+function validateForm() {
+  validateEmail();
+  validatePassword();
+  return !emailError.value && !passwordError.value;
+}
+
+async function handleLogin() {
+  // Quick client-side validation
+  if (!isFormValid.value) return;
+
+  loading.value = true;
+  errorMessage.value = '';
+
+  try {
+    const data = await auth.login(email.value, password.value);
+
+    // If backend returned user object, persist minimal info
+    if (data?.user) {
+      const authData = {
+        isAuthenticated: 'true',
+        userEmail: data.user.email || email.value,
+        userRole: data.user.role || '',
+        userId: data.user.id || '',
+        loginTime: Date.now()
+      };
+      Object.entries(authData).forEach(([k, v]) => localStorage.setItem(k, v));
+
+      // clear local form
+      email.value = '';
+      password.value = '';
+
+      router.push(data.redirectUrl || '/dashboard');
+    } else {
+      errorMessage.value = data?.message || 'Login failed. Please try again.';
+    }
+  } catch (err) {
+    // Use message from store or thrown error
+    errorMessage.value = auth.error || err.message || 'Login failed';
+  } finally {
+    loading.value = false;
+  }
+}
+
+const isFormValid = computed(() => {
+  return isValidEmail(email.value) && password.value && password.value.length >= 3;
+});
+
+onMounted(async () => {
+  await groupsStore.fetchAll()
+})
+</script>
 <template>
   <div class="login-layout">
     <div class="login-container">
@@ -51,176 +143,6 @@
     </div>
   </div>
 </template>
-
-<script>
-export default {
-  name: 'LoginComponent',
-  data() {
-    return {
-      email: '',
-      password: '',
-      loading: false,
-      errorMessage: '',
-      emailError: '',
-      passwordError: ''
-    }
-  },
-  computed: {
-    isFormValid() {
-      return this.email && 
-             this.password && 
-             !this.emailError && 
-             !this.passwordError &&
-             this.isValidEmail(this.email);
-    }
-  },
-  methods: {
-    isValidEmail(email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    },
-
-    validateEmail() {
-      if (!this.email) {
-        this.emailError = 'Email is required';
-      } else if (!this.isValidEmail(this.email)) {
-        this.emailError = 'Please enter a valid email address';
-      } else {
-        this.emailError = '';
-      }
-    },
-
-    validatePassword() {
-      if (!this.password) {
-        this.passwordError = 'Password is required';
-      } else if (this.password.length < 3) { // Adjust minimum length as needed
-        this.passwordError = 'Password is too short';
-      } else {
-        this.passwordError = '';
-      }
-    },
-
-    validateForm() {
-      this.validateEmail();
-      this.validatePassword();
-      return !this.emailError && !this.passwordError;
-    },
-
-    async handleLogin() {
-      // Validate form before submission
-      if (!this.validateForm()) {
-        return;
-      }
-
-      this.loading = true;
-      this.errorMessage = '';
-
-      try {
-        console.log('Attempting login with:', { email: this.email });
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-        const response = await fetch('http://localhost:3000/api/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: this.email,
-            password: this.password
-          }),
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-        
-        console.log('Response status:', response.status);
-
-        if (!response.ok) {
-          // Handle different HTTP status codes
-          switch (response.status) {
-            case 400:
-              throw new Error('Invalid email or password format');
-            case 401:
-              throw new Error('Invalid email or password');
-            case 403:
-              throw new Error('Account is disabled or access forbidden');
-            case 404:
-              throw new Error('User not found');
-            case 429:
-              throw new Error('Too many login attempts. Please try again later');
-            case 500:
-              throw new Error('Server error. Please try again later');
-            default:
-              throw new Error(`Login failed with status: ${response.status}`);
-          }
-        }
-
-        let data;
-        try {
-          data = await response.json();
-        } catch (parseError) {
-          throw new Error('Invalid server response');
-        }
-
-        console.log('Response data:', data);
-
-        if (data.success) {
-          // Store authentication info securely
-          const authData = {
-            isAuthenticated: 'true',
-            userEmail: this.email,
-            userRole: data.user.role,
-            userId: data.user.id,
-            loginTime: Date.now() // For session timeout if needed
-          };
-
-          // Store each piece of data
-          Object.entries(authData).forEach(([key, value]) => {
-            localStorage.setItem(key, value);
-          });
-          
-          console.log('Login successful, redirecting to:', data.redirectUrl);
-          
-          // Clear form
-          this.email = '';
-          this.password = '';
-          
-          // Navigate to the appropriate page
-          this.$router.push(data.redirectUrl || '/dashboard');
-          
-        } else {
-          this.errorMessage = data.message || 'Login failed. Please check your credentials';
-        }
-
-      } catch (error) {
-        console.error('Login error:', error);
-        
-        if (error.name === 'AbortError') {
-          this.errorMessage = 'Request timed out. Please check your connection and try again';
-        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-          this.errorMessage = 'Cannot connect to server. Please check if the server is running';
-        } else if (error.message.includes('JSON') || error.message.includes('server response')) {
-          this.errorMessage = 'Server response error. Please try again';
-        } else {
-          this.errorMessage = error.message || 'Connection error. Please try again';
-        }
-      } finally {
-        this.loading = false;
-      }
-    }
-  },
-
-  // Clear any errors when component is destroyed
-  beforeUnmount() {
-    this.errorMessage = '';
-    this.emailError = '';
-    this.passwordError = '';
-  }
-}
-</script>
-
 
 <style scoped>
 .signup-link {

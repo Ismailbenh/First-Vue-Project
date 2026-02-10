@@ -1,5 +1,5 @@
 <script setup>
-import './base.css'
+import '@/assests/base.css'
 
 </script>
 
@@ -8,5 +8,4 @@ import './base.css'
 </template>
 
 <style>
- 
 </style>

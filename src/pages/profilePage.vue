@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import CustomButton from '@/components/profile_requirement/button.vue'
 import AddIcon from '@/components/icons/addIcon.vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -82,11 +83,22 @@ const hasActiveFilters = computed(() => {
          ageRange.value.min !== '' || 
          ageRange.value.max !== ''
 })
+const auth = useAuthStore()
+
 const handleLogout = () => {
+  // Update Pinia store and clear any persisted localStorage keys
+  try {
+    auth.logout()
+  } catch (e) {
+    // ignore
+  }
   localStorage.removeItem('isAuthenticated')
   localStorage.removeItem('userEmail')
+  localStorage.removeItem('userRole')
+  localStorage.removeItem('userId')
   router.push('/login')
 }
+
 const confirmLogout = () => {
   if (confirm('Are you sure you want to log out?')) {
     handleLogout()

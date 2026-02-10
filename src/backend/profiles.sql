@@ -11,6 +11,8 @@ DROP TABLE IF EXISTS professions;
 DROP TABLE IF EXISTS profile_room_members;
 DROP TABLE IF EXISTS rooms;
 DROP TABLE IF EXISTS profile_group_members;
+DROP TABLE IF EXISTS group_subjects;
+DROP TABLE IF EXISTS subjects;
 DROP TABLE IF EXISTS profile_groups;
 DROP TABLE IF EXISTS profiles;
 DROP TABLE IF EXISTS group_room_members;
@@ -51,6 +53,14 @@ CREATE TABLE profile_profession_members (
     UNIQUE KEY unique_profile_profession (profile_id, profession_id)
 );
 
+-- Create subjects table
+CREATE TABLE subjects (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create profile_groups table (keeping existing functionality)
 CREATE TABLE profile_groups (
     id VARCHAR(255) PRIMARY KEY,
@@ -58,6 +68,17 @@ CREATE TABLE profile_groups (
     description TEXT,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create group_subjects junction table
+CREATE TABLE group_subjects (
+    id VARCHAR(255) PRIMARY KEY,
+    group_id VARCHAR(255) NOT NULL,
+    subject_id VARCHAR(255) NOT NULL,
+    addedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES profile_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_group_subject (group_id, subject_id)
 );
 
 -- Create users table
@@ -184,6 +205,17 @@ INSERT INTO professions (id, name) VALUES
 ('prof_4', 'Electrician'),
 ('prof_5', 'chef'),
 ('prof_6', 'nurse');
+
+-- Insert default subjects
+INSERT INTO subjects (id, name, description) VALUES
+('subj_1', 'Math', 'Mathematics including algebra, geometry, and calculus'),
+('subj_2', 'Physics', 'Study of matter, energy, and their interactions'),
+('subj_3', 'Chemistry', 'Study of substances, their properties, and reactions'),
+('subj_4', 'Biology', 'Study of living organisms and their processes'),
+('subj_5', 'History', 'Study of past events and human civilization'),
+('subj_6', 'Geography', 'Study of Earth and its features'),
+('subj_7', 'Computer Science', 'Study of computers and computational systems'),
+('subj_8', 'English', 'Study of English language and literature');
 
 -- Insert the two default rooms
 INSERT INTO rooms (id, name, description, max_capacity, current_count) VALUES 

@@ -7,21 +7,18 @@ import Breadcrumbs from '@/components/breadcrumbs.vue'
 import textBox from '@/components/textBox.vue'
 import Sidebar from '@/components/sidebar.vue'
 
-// -------------------- Router + state setup --------------------
 const avatarInputRef = ref(null)
 
 const route = useRoute()
 const router = useRouter()
 const id = ref(route.params.id)
 const isEditing = ref(false)
-// Avatar/Profile Picture State
-const avatarFile = ref(null)           // Selected file object
-const avatarPreview = ref('')          // Preview URL for selected image
-const currentAvatarUrl = ref('')       // Current avatar URL from server
-const isUploadingAvatar = ref(false)   // Upload progress state
-const avatarError = ref('')            // Error messages
-const showAvatarUpload = ref(false)    // Toggle upload interface
-// Profile state
+const avatarFile = ref(null)          
+const avatarPreview = ref('')          
+const currentAvatarUrl = ref('')      
+const isUploadingAvatar = ref(false)   
+const avatarError = ref('')            
+const showAvatarUpload = ref(false)   
 const profile = ref({
     firstName: '',
     lastName: '',
@@ -30,14 +27,11 @@ const profile = ref({
     message: ''
 })
 
-// -------------------- Success message state --------------------
 const successMessage = ref('')
 const showSuccess = ref(false)
 
-// -------------------- Profession options (now dynamic) --------------------
 const professionsOptions = ref([])
 
-// -------------------- Computed properties --------------------
 const isProfileFilled = computed(() => {
     return profile.value.firstName || 
            profile.value.lastName || 
@@ -65,13 +59,11 @@ const breadcrumbs = computed(() => {
   return baseBreadcrumbs
 })
 
-// -------------------- Utility functions --------------------
 const generateId = () => {
     return 'profile_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
 }
 
-// -------------------- API functions --------------------
-// -------------------- API functions --------------------
+
 const fetchProfessions = async () => {
     try {
         console.log('Fetching professions from API...') // Debug log

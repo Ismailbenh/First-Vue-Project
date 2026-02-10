@@ -5,7 +5,6 @@ import profileCotainer from '@/components/profile_requirement/profileCotainer.vu
 import CustomButton from '@/components/profile_requirement/button.vue'
 import AddIcon from '@/components/icons/addIcon.vue'
 import { useRouter, useRoute } from 'vue-router'
-import profilesData from '@/data/profiles.json'
 import Breadcrumbs from '@/components/breadcrumbs.vue'
 import selectionIcon from '@/components/icons/selectionIcon.vue'
 
@@ -14,7 +13,7 @@ const breadcrumbs = [
   { label: 'Groups', route: null }
 ]
 
-const profiles = ref(profilesData)
+const profiles = ref([])
 const router = useRouter()
 const route = useRoute()
 const filterText = ref("")
@@ -24,6 +23,9 @@ const selectedProfiles = ref([])
 const profileGroups = ref([])
 const newGroupName = ref('')
 const newGroupDescription = ref('')
+const selectedSubjects = ref([])
+const availableSubjects = ref([])
+const isLoadingSubjects = ref(false)
 const isCreatingGroup = ref(false)
 const selectionMode = ref(false)
 const isLoadingGroups = ref(false)
@@ -35,15 +37,22 @@ const selectedRoomId = ref('')
 const isEditing = ref(false)
 const profile = ref({})
 
-// NEW: Group assignment to rooms
+// NEW: Edit group modal
+const isEditingGroup = ref(false)
+const editingGroup = ref(null)
+const editGroupName = ref('')
+const editGroupDescription = ref('')
+const editSelectedSubjects = ref([])
+const editSelectedProfiles = ref([])
+const availableProfilesForSelection = ref([])
+const isLoadingAvailableProfiles = ref(false)
+// Group assignment to rooms
 const groupAssignmentMode = ref(false)
 const selectedGroupIds = ref([])
 const selectedRoomIdForGroups = ref('')
 
-// Get id from route params
 const id = computed(() => route.params.id)
 
-// -------------------- FIXED: Ensure displayProfiles always shows something --------------------
 const displayProfiles = computed(() => {
   if (showFiltered.value && filteredProfiles.value.length > 0) {
     return filteredProfiles.value
@@ -51,15 +60,17 @@ const displayProfiles = computed(() => {
   return profiles.value || []
 })
 
-// -------------------- Computed: Filter profiles that have messages --------------------
 const profilesWithMessages = computed(() => {
   const profilesToShow = displayProfiles.value;
   return profilesToShow.filter(profile => profile.message && profile.message.trim() !== '')
 })
 
-function toggleSelectionMode() {
+async function toggleSelectionMode() {
   selectionMode.value = !selectionMode.value
-  if (!selectionMode.value) {
+  if (selectionMode.value) {
+    // Load available profiles when entering selection mode
+    await loadAvailableProfilesForGroup()
+  } else {
     selectedProfiles.value = []
   }
 }
@@ -73,7 +84,6 @@ function handleProfileSelect(profileId) {
   }
 }
 
-// NEW: Group selection functions
 function toggleGroupAssignmentMode() {
   groupAssignmentMode.value = !groupAssignmentMode.value
   selectedGroupIds.value = []
@@ -89,7 +99,6 @@ function handleGroupSelect(groupId) {
   }
 }
 
-// NEW: Assign groups to room
 async function assignGroupsToRoom() {
   if (!selectedRoomIdForGroups.value || selectedGroupIds.value.length === 0) {
     alert('Please select a room and at least one group')
@@ -110,12 +119,10 @@ async function assignGroupsToRoom() {
     if (result.success) {
       alert(result.message)
       
-      // Reset selection
       selectedGroupIds.value = []
       groupAssignmentMode.value = false
       selectedRoomIdForGroups.value = ''
       
-      // Refresh data
       await loadRooms()
       await loadAvailableProfiles()
       await loadProfiles()
@@ -129,7 +136,6 @@ async function assignGroupsToRoom() {
   }
 }
 
-// NEW: Remove group from room
 async function removeGroupFromRoom(groupId, roomId) {
   if (!confirm('Are you sure you want to remove this group from the room?')) return
 
@@ -155,10 +161,14 @@ async function removeGroupFromRoom(groupId, roomId) {
   }
 }
 
-// Updated function to create group in database
 async function createProfileGroup() {
   if (!newGroupName.value.trim() || selectedProfiles.value.length === 0) {
     alert('Please enter a group name and select at least one profile')
+    return
+  }
+
+  if (selectedSubjects.value.length === 0) {
+    alert('Please select at least one subject')
     return
   }
 
@@ -171,7 +181,8 @@ async function createProfileGroup() {
       body: JSON.stringify({
         name: newGroupName.value.trim(),
         description: newGroupDescription.value.trim(),
-        profileIds: selectedProfiles.value
+        profileIds: selectedProfiles.value,
+        subjectIds: selectedSubjects.value
       })
     });
 
@@ -180,14 +191,13 @@ async function createProfileGroup() {
     if (result.success) {
       console.log(`✅ Created group "${result.group.name}" with ${result.group.memberCount} profiles`)
       
-      // Reset form
       newGroupName.value = ''
       newGroupDescription.value = ''
       selectedProfiles.value = []
+      selectedSubjects.value = []
       isCreatingGroup.value = false
       selectionMode.value = false
       
-      // Refresh groups list
       await loadProfileGroups()
       
     } else {
@@ -199,16 +209,107 @@ async function createProfileGroup() {
   }
 }
 
+// NEW: Open edit group modal
+async function openEditGroup(group) {
+  try {
+    isLoadingAvailableProfiles.value = true
+    
+    // Load group details including members and subjects
+    const [groupDetails, groupSubjects, availableProfiles] = await Promise.all([
+      fetch(`http://localhost:3000/api/groups/${group.id}`).then(r => r.json()),
+      fetch(`http://localhost:3000/api/groups/${group.id}/subjects`).then(r => r.json()),
+      fetch(`http://localhost:3000/api/profiles/available-for-group/${group.id}`).then(r => r.json())
+    ]);
+
+    editingGroup.value = group
+    editGroupName.value = groupDetails.name
+    editGroupDescription.value = groupDetails.description || ''
+    editSelectedSubjects.value = groupSubjects.map(s => s.id)
+    editSelectedProfiles.value = groupDetails.members.map(m => m.id)
+    availableProfilesForSelection.value = availableProfiles
+    isEditingGroup.value = true
+  } catch (error) {
+    console.error('Error loading group details:', error)
+    alert('Failed to load group details')
+  } finally {
+    isLoadingAvailableProfiles.value = false
+  }
+}
+
+// NEW: Save edited group
+async function saveEditedGroup() {
+  if (!editGroupName.value.trim()) {
+    alert('Please enter a group name')
+    return
+  }
+
+  if (editSelectedSubjects.value.length === 0) {
+    alert('Please select at least one subject')
+    return
+  }
+
+  if (editSelectedProfiles.value.length === 0) {
+    alert('Please select at least one member')
+    return
+  }
+
+  try {
+    const response = await fetch(`http://localhost:3000/api/groups/${editingGroup.value.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: editGroupName.value.trim(),
+        description: editGroupDescription.value.trim(),
+        subjectIds: editSelectedSubjects.value,
+        profileIds: editSelectedProfiles.value
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert('Group updated successfully')
+      closeEditGroup()
+      await loadProfileGroups()
+    } else {
+      alert(result.message || 'Failed to update group')
+    }
+  } catch (error) {
+    console.error('Error updating group:', error)
+    alert('Error updating group. Please try again.')
+  }
+}
+
+// NEW: Close edit modal
+function closeEditGroup() {
+  isEditingGroup.value = false
+  editingGroup.value = null
+  editGroupName.value = ''
+  editGroupDescription.value = ''
+  editSelectedSubjects.value = []
+  editSelectedProfiles.value = []
+  availableProfilesForSelection.value = []
+}
+
+// NEW: Handle edit profile selection
+function handleEditProfileSelect(profileId) {
+  const index = editSelectedProfiles.value.indexOf(profileId)
+  if (index > -1) {
+    editSelectedProfiles.value.splice(index, 1)
+  } else {
+    editSelectedProfiles.value.push(profileId)
+  }
+}
+
 async function loadRooms() {
   try {
     isLoadingRooms.value = true
-    console.log('Loading rooms from database...')
-    
     const response = await fetch('http://localhost:3000/api/rooms')
     if (response.ok) {
       const roomsData = await response.json()
       
-      // For each room, fetch detailed member information
       const roomsWithMembers = await Promise.all(
         roomsData.map(async (room) => {
           try {
@@ -225,9 +326,6 @@ async function loadRooms() {
       )
       
       rooms.value = roomsWithMembers
-      console.log(`Loaded ${roomsData.length} rooms`)
-    } else {
-      console.error('Failed to fetch rooms')
     }
   } catch (error) {
     console.error('Error loading rooms:', error)
@@ -236,21 +334,18 @@ async function loadRooms() {
   }
 }
 
-// Load available profiles (not in any room)
 async function loadAvailableProfiles() {
   try {
     const response = await fetch('http://localhost:3000/api/profiles/available')
     if (response.ok) {
       const profiles = await response.json()
       availableProfiles.value = profiles
-      console.log(`Loaded ${profiles.length} available profiles`)
     }
   } catch (error) {
     console.error('Error loading available profiles:', error)
   }
 }
 
-// Toggle room assignment mode
 function toggleRoomSelectionMode() {
   roomSelectionMode.value = !roomSelectionMode.value
   selectedRoomId.value = ''
@@ -261,7 +356,6 @@ function toggleRoomSelectionMode() {
   }
 }
 
-// Add profile to room
 async function addProfileToRoom(profileId, roomId) {
   try {
     const response = await fetch(`http://localhost:3000/api/rooms/${roomId}/members`, {
@@ -275,10 +369,9 @@ async function addProfileToRoom(profileId, roomId) {
     const result = await response.json();
 
     if (result.success) {
-      console.log(`✅ Added profile to room`)
-      await loadRooms() // Refresh rooms
-      await loadAvailableProfiles() // Refresh available profiles
-      await loadProfiles() // Refresh main profiles list
+      await loadRooms()
+      await loadAvailableProfiles()
+      await loadProfiles()
     } else {
       alert(result.message || 'Failed to add profile to room')
     }
@@ -288,7 +381,6 @@ async function addProfileToRoom(profileId, roomId) {
   }
 }
 
-// Add multiple selected profiles to room
 async function addSelectedProfilesToRoom() {
   if (!selectedRoomId.value || selectedProfiles.value.length === 0) {
     alert('Please select a room and at least one profile')
@@ -309,12 +401,10 @@ async function addSelectedProfilesToRoom() {
     if (result.success) {
       alert(`${result.message}${result.skippedCount > 0 ? ` (${result.skippedCount} profiles were already assigned)` : ''}`)
       
-      // Reset selection
       selectedProfiles.value = []
       roomSelectionMode.value = false
       selectedRoomId.value = ''
       
-      // Refresh data
       await loadRooms()
       await loadAvailableProfiles()
       await loadProfiles()
@@ -327,7 +417,6 @@ async function addSelectedProfilesToRoom() {
   }
 }
 
-// Remove profile from room
 async function removeProfileFromRoom(profileId, roomId) {
   try {
     const response = await fetch(`http://localhost:3000/api/rooms/${roomId}/members/${profileId}`, {
@@ -337,10 +426,9 @@ async function removeProfileFromRoom(profileId, roomId) {
     const result = await response.json();
 
     if (result.success) {
-      console.log(' Profile removed from room successfully')
-      await loadRooms() // Refresh rooms
-      await loadAvailableProfiles() // Refresh available profiles
-      await loadProfiles() // Refresh main profiles list
+      await loadRooms()
+      await loadAvailableProfiles()
+      await loadProfiles()
     } else {
       alert(result.message || 'Failed to remove profile from room')
     }
@@ -350,7 +438,6 @@ async function removeProfileFromRoom(profileId, roomId) {
   }
 }
 
-// Updated function to delete group from database
 async function deleteProfileGroup(groupId) {
   if (!confirm('Are you sure you want to delete this group?')) return
 
@@ -362,8 +449,7 @@ async function deleteProfileGroup(groupId) {
     const result = await response.json();
 
     if (result.success) {
-      console.log('✅ Group deleted successfully')
-      await loadProfileGroups() // Refresh the list
+      await loadProfileGroups()
     } else {
       alert(result.message || 'Failed to delete group')
     }
@@ -373,17 +459,14 @@ async function deleteProfileGroup(groupId) {
   }
 }
 
-// New function to load groups from database
 async function loadProfileGroups() {
   try {
     isLoadingGroups.value = true
-    console.log('Loading profile groups from database...')
     
     const response = await fetch('http://localhost:3000/api/groups')
     if (response.ok) {
       const groups = await response.json()
       
-      // For each group, fetch detailed member information
       const groupsWithMembers = await Promise.all(
         groups.map(async (group) => {
           try {
@@ -400,9 +483,6 @@ async function loadProfileGroups() {
       )
       
       profileGroups.value = groupsWithMembers
-      console.log(`Loaded ${groups.length} groups`)
-    } else {
-      console.error('Failed to fetch groups')
     }
   } catch (error) {
     console.error('Error loading groups:', error)
@@ -416,7 +496,6 @@ function handleAddButton() {
 }
 
 function editProfile(id) {
-  console.log('Editing profile with id:', id)
   router.push({ name: 'infoPage', params: { id } })
 }
 
@@ -430,28 +509,52 @@ async function deleteProfile(id) {
 
     if (result.success) {
       profiles.value = profiles.value.filter(p => p.id !== id);
-      // Also refresh groups as they might contain this profile
       await loadProfileGroups()
-      await loadRooms() // Also refresh rooms
-    } else {
-      console.error(result.message || 'Failed to delete profile');
+      await loadRooms()
     }
   } catch (error) {
     console.error('Error deleting profile:', error);
   }
 }
 
-// Load profiles from API
+async function loadSubjects() {
+  isLoadingSubjects.value = true
+  try {
+    const response = await fetch('http://localhost:3000/api/subjects')
+    if (!response.ok) throw new Error('Failed to load subjects')
+    availableSubjects.value = await response.json()
+  } catch (error) {
+    console.error('Error loading subjects:', error)
+  } finally {
+    isLoadingSubjects.value = false
+  }
+}
+async function loadAvailableProfilesForGroup() {
+  try {
+    const response = await fetch('http://localhost:3000/api/profiles/unassigned')
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to load available profiles')
+    }
+    
+    const loadedProfiles = await response.json()
+    profiles.value = loadedProfiles
+    console.log('Loaded profiles:', loadedProfiles.length) // Debug log
+  } catch (error) {
+    console.error('Error loading available profiles:', error)
+    profiles.value = []
+  }
+}
 async function loadProfiles() {
   try {
-    console.log('Fetching all profiles...')
     const response = await fetch('http://localhost:3000/api/profiles')
     if (response.ok) {
       const apiProfiles = await response.json()
-      profiles.value = apiProfiles
-      console.log(`Loaded ${apiProfiles.length} profiles`)
-    } else {
-      console.error('Failed to fetch profiles')
+      profiles.value = apiProfiles.map(profile => ({
+        ...profile,
+        isSelectable: true
+      }))
     }
   } catch (error) {
     console.error('Error fetching profiles list:', error)
@@ -459,7 +562,6 @@ async function loadProfiles() {
 }
 
 function handleFilterButton() {
-  console.log('Filter applied:', filterText.value)
   if (!filterText.value) {
     showFiltered.value = false
     filteredProfiles.value = []
@@ -476,14 +578,12 @@ function handleFilterButton() {
   showFiltered.value = true
 }
 
-// Auto-assign profiles to rooms
 const assignToRooms = async () => {
   try {
     const res = await fetch('http://localhost:3000/api/assignRooms', { method: 'POST' });
     const data = await res.json();
     if (data.success) {
       alert(`${data.message}${data.unassignedRemaining > 0 ? ` (${data.unassignedRemaining} profiles couldn't be assigned due to room capacity)` : ''}`);
-      // Refresh data
       await loadRooms()
       await loadAvailableProfiles()
       await loadProfiles()
@@ -496,52 +596,120 @@ const assignToRooms = async () => {
   }
 };
 
-// Updated onMounted function
 onMounted(async () => {
-  if (id.value) {
-    isEditing.value = true
-    try {
-      console.log('Fetching profile with ID:', id.value)
-      const response = await fetch(`http://localhost:3000/api/profiles/${id.value}`)
-      if (response.ok) {
-        const existing = await response.json()
-        profile.value = existing
-        console.log('Profile loaded:', existing)
-      } else {
-        console.error('Profile not found, redirecting...')
-        alert('Profile not found!')
-        router.push({ name: 'profilePage' })
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error)
-      alert('Error loading profile!')
-    }
-  }
-  
-  // Load all data
   await loadProfiles()
   await loadProfileGroups()
   await loadRooms()
   await loadAvailableProfiles()
+  await loadSubjects()
 })
 </script>
+
 <template>
   <div class="layout">
     <Sidebar />
     <main class="main-content">
       <Breadcrumbs :breadcrumbs="breadcrumbs" />
-      <h1>Groups</h1>
-      <div v-if="isLoadingGroups">Loading groups...</div>
+      <h1>Groups Management</h1>
+
+      <!-- Create Group Section -->
+      <div class="create-section">
+        <CustomButton 
+          :name="isCreatingGroup ? 'Cancel' : 'Create New Group'" 
+          @click="isCreatingGroup = !isCreatingGroup"
+        />
+      </div>
+
+      <!-- Create Group Form -->
+      <div v-if="isCreatingGroup" class="create-group-form">
+        <div class="form-row">
+          <input 
+            v-model="newGroupName" 
+            placeholder="Group Name" 
+            class="group-name-input"
+          />
+          <input 
+            v-model="newGroupDescription" 
+            placeholder="Description (optional)" 
+            class="group-description-input"
+          />
+        </div>
+
+        <!-- Subject Selection -->
+        <div class="subjects-section">
+          <h3>Select Subjects/Modules</h3>
+          <div v-if="isLoadingSubjects">Loading subjects...</div>
+          <div v-else class="subjects-grid">
+            <label 
+              v-for="subject in availableSubjects" 
+              :key="subject.id"
+              class="subject-checkbox"
+            >
+              <input 
+                type="checkbox" 
+                :value="subject.id"
+                v-model="selectedSubjects"
+              />
+              <span>{{ subject.name }}</span>
+            </label>
+          </div>
+          <p v-if="selectedSubjects.length === 0" class="subjects-hint">
+            * Please select at least one subject
+          </p>
+        </div>
+
+        <!-- Profile Selection -->
+        <div class="selection-controls">
+          <CustomButton 
+            :name="selectionMode ? 'Cancel Selection' : 'Select Members'" 
+            @click="toggleSelectionMode"
+          />
+          <span v-if="selectionMode" class="selected-count">
+            Selected: {{ selectedProfiles.length }}
+          </span>
+          <CustomButton 
+            v-if="selectionMode && selectedProfiles.length > 0"
+            name="Create Group" 
+            @click="createProfileGroup"
+          />
+        </div>
+
+        <div v-if="selectionMode" class="profiles">
+  <div v-if="isLoadingAvailableProfiles" class="loading-message">
+    Loading available profiles...
+  </div>
+  <div v-else-if="availableProfilesForSelection.length === 0" class="no-profiles-message">
+    No available profiles. All profiles are already assigned to groups.
+  </div>
+  <profileCotainer
+    v-else
+    v-for="profile in availableProfilesForSelection"
+    :key="profile.id"
+    :id="profile.id"
+    :firstName="profile.firstName"
+    :last-name="profile.lastName"
+    :is-selectable="true"
+    :is-selected="selectedProfiles.includes(profile.id)"
+    @select="handleProfileSelect"
+  />
+</div>
+      </div>
+
+      <!-- Groups List -->
+      <div v-if="isLoadingGroups" class="loading">Loading groups...</div>
       <div v-else class="profile-groups">
         <div v-for="group in profileGroups" :key="group.id" class="profile-group">
           <div class="group-header">
             <div class="group-info">
               <h3>{{ group.name }}</h3>
               <p v-if="group.description">{{ group.description }}</p>
-              <p v-if="group.assignedRoom">Assigned to: {{ group.assignedRoom }}</p>
+              <p v-if="group.assignedRoom" class="assigned-room">Assigned to: {{ group.assignedRoom }}</p>
             </div>
-            <span class="profile-count">{{ group.memberCount || (group.members ? group.members.length : 0) }} profiles</span>
-            <CustomButton name="Delete" @click="deleteProfileGroup(group.id)" class="delete-btn" />
+            <span class="profile-count">{{ group.memberCount || (group.members ? group.members.length : 0) }} members</span>
+            <div class="group-actions">
+              <CustomButton name="Edit" @click="openEditGroup(group)" class="edit-btn" />
+              <CustomButton name="Delete" @click="deleteProfileGroup(group.id)" class="delete-btn" />
+            </div>
           </div>
           <div class="group-profiles-grid">
             <profileCotainer
@@ -556,312 +724,186 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+
+      <!-- Edit Group Modal -->
+      <div v-if="isEditingGroup" class="modal-overlay" @click.self="closeEditGroup">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Edit Group: {{ editingGroup.name }}</h2>
+            <button @click="closeEditGroup" class="close-btn">×</button>
+          </div>
+          
+          <div class="modal-body">
+            <!-- Basic Info -->
+            <div class="form-section">
+              <label>Group Name</label>
+              <input v-model="editGroupName" class="form-input" />
+            </div>
+
+            <div class="form-section">
+              <label>Description</label>
+              <textarea v-model="editGroupDescription" class="form-textarea"></textarea>
+            </div>
+
+            <!-- Subjects -->
+            <div class="form-section">
+              <label>Subjects/Modules</label>
+              <div class="subjects-grid">
+                <label 
+                  v-for="subject in availableSubjects" 
+                  :key="subject.id"
+                  class="subject-checkbox"
+                >
+                  <input 
+                    type="checkbox" 
+                    :value="subject.id"
+                    v-model="editSelectedSubjects"
+                  />
+                  <span>{{ subject.name }}</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Members -->
+            <!-- Members -->
+<div class="form-section">
+  <label>Members ({{ editSelectedProfiles.length }} selected)</label>
+  <div v-if="isLoadingAvailableProfiles" class="loading-message">
+    Loading available profiles...
+  </div>
+  <div v-else-if="availableProfilesForSelection.length === 0" class="no-profiles-message">
+    No available profiles to add.
+  </div>
+  <div v-else class="profiles-grid-modal">
+    <div
+      v-for="profile in availableProfilesForSelection"
+      :key="profile.id"
+      class="profile-checkbox-item"
+      :class="{ selected: editSelectedProfiles.includes(profile.id) }"
+      @click="handleEditProfileSelect(profile.id)"
+    >
+      <input 
+        type="checkbox" 
+        :checked="editSelectedProfiles.includes(profile.id)"
+        @click.stop="handleEditProfileSelect(profile.id)"
+      />
+      <span>{{ profile.firstName }} {{ profile.lastName }}</span>
+    </div>
+  </div>
+</div>
+          </div>
+
+          <div class="modal-footer">
+            <CustomButton name="Cancel" @click="closeEditGroup" class="cancel-btn" />
+            <CustomButton name="Save Changes" @click="saveEditedGroup" class="save-btn" />
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
-
 
 <style scoped>
 .layout {
   display: flex;
   min-height: 100vh;
 }
+
 .main-content {
   margin-left: 70px;
   flex: 1;
   padding: 32px 24px;
   background: #1B3C53;
   min-height: 100vh;
+  color: white;
 }
 
-/* Group assignment styles */
-.group-assignment-section {
-  background: #2a1810;
-  padding: 1rem;
+/* Create Section */
+.create-section {
+  margin-bottom: 1.5rem;
+}
+
+/* Form Styles */
+.create-group-form {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
   border-radius: 8px;
-  margin-bottom: 1rem;
-  color: white;
+  margin-bottom: 2rem;
 }
 
-.group-assignment-btn {
-  background: #8b4513 !important;
-  color: white;
-}
-
-.group-title-section {
+.form-row {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-.group-checkbox {
-  width: 1.2rem;
-  height: 1.2rem;
+.group-name-input,
+.group-description-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 1rem;
 }
 
-.assigned-groups {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background: #f8f9fa;
+.group-name-input::placeholder,
+.group-description-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Subjects Section */
+.subjects-section {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
   border-radius: 8px;
-  border-left: 4px solid #8b4513;
+  margin-bottom: 1.5rem;
 }
 
-.assigned-groups h4 {
-  margin: 0 0 0.5rem 0;
-  color: #8b4513;
+.subjects-section h3 {
+  margin: 0 0 1rem 0;
+  color: white;
   font-size: 1.1rem;
 }
 
-.groups-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.assigned-group {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem;
-  background: white;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-}
-
-.group-name {
-  font-weight: bold;
-  color: #333;
-}
-
-.group-member-count {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.remove-group-btn {
-  background: #dc3545 !important;
-  color: white;
-  font-size: 0.8rem;
-  padding: 0.25rem 0.5rem;
-}
-
-.assigned-room {
-  color: #28a745;
-  font-weight: bold;
-  font-size: 0.9rem;
-  margin: 0.25rem 0 0 0;
-}
-
-.member-group {
-  color: #8b4513;
-  font-size: 0.8rem;
-  font-style: italic;
-}
-
-.group-badge {
-  background: #8b4513;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  margin-right: 0.5rem;
-}
-
-.no-messages {
-  text-align: center;
-  padding: 2rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-style: italic;
-}
-
-/* Room Assignment Styles */
-.room-assignment-controls {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background: #f5f5f5;
-  border-radius: 8px;
-}
-
-.room-assignment-section {
-  background: #360379;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-}
-
-.room-selector {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.room-select {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  min-width: 200px;
-}
-
-.selection-summary {
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
-  border-radius: 4px;
-  padding: 0.5rem;
-  margin: 1rem 0;
-}
-
-/* Room Cards */
-.rooms-section {
-  margin: 2rem 0;
-}
-
-.rooms-grid {
+.subjects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
 }
 
-.room-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 1rem;
-  background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.room-header {
+.subject-checkbox {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #eee;
-}
-
-.room-info h3 {
-  margin: 0;
-  color: #333;
-}
-
-.room-description {
-  margin: 0.25rem 0 0 0;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.capacity-badge {
-  background: #28a745;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: bold;
-}
-
-.capacity-badge.full {
-  background: #dc3545;
-}
-
-.room-members-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.5rem;
-}
-
-.room-member-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 0.75rem;
-  background: #f8f9fa;
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  border: 1px solid #e9ecef;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
 }
 
-.member-info {
-  display: flex;
-  flex-direction: column;
+.subject-checkbox:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
-.member-age {
-  font-size: 0.8rem;
-  color: #666;
+.subject-checkbox input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
 }
 
-.empty-room {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
+.subjects-hint {
+  margin-top: 0.5rem;
+  color: #ff6b6b;
+  font-size: 0.9rem;
   font-style: italic;
 }
 
-.remove-btn {
-  background: #dc3545 !important;
-  color: white;
-  font-size: 0.8rem;
-  padding: 0.25rem 0.5rem;
-}
-
-/* Available Profiles */
-.available-profiles-section {
-  margin: 2rem 0;
-}
-
-.available-profiles-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.available-profile-card {
-  padding: 1rem;
-  background: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: 4px;
-}
-
-.profile-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.profile-age {
-  font-size: 0.8rem;
-  color: #666;
-}
-
-/* Room Badge in Profile List */
-.room-badge {
-  background: #17a2b8;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  margin-right: 0.5rem;
-}
-
-/* Button Styling */
-.room-assignment-btn {
-  background: #007bff !important;
-  color: white;
-}
-
-.auto-assign-btn {
-  background: #28a745 !important;
-  color: white;
-}
-
-.assign-selected-btn {
-  background: #ffc107 !important;
-  color: #212529;
-  font-weight: bold;
-}
-
-/* Existing styles can remain... */
+/* Selection Controls */
 .selection-controls {
   display: flex;
   align-items: center;
@@ -870,56 +912,37 @@ onMounted(async () => {
 }
 
 .selected-count {
-  color: #007bff;
+  color: #4CAF50;
   font-weight: bold;
+  font-size: 1rem;
 }
-
-.create-group-form {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-}
-
-.group-name-input,
-.group-description-input {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  flex: 1;
-}
-
-.filter {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.filter input {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  flex: 1;
-}
-
-.loading {
-  text-align: center;
+.loading-message,
+.no-profiles-message {
   padding: 2rem;
-  color: #666;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  width: 100%;
 }
 
-.profiles,.group-profiles-grid{
+.no-profiles-message {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  color: #FFC107;
+}
+/* Profiles Grid */
+.profiles {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
 }
 
-/* Groups Section - Matching rooms section styling */
-.groups-section {
-  margin: 2rem 0;
+/* Groups List */
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .profile-groups {
@@ -928,11 +951,16 @@ onMounted(async () => {
 }
 
 .profile-group {
-  border: 1px solid #ddd;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  padding: 1rem;
-  background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.profile-group:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .group-header {
@@ -940,108 +968,228 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #eee;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .group-info h3 {
   margin: 0;
-  color: #333;
+  color: white;
+  font-size: 1.3rem;
 }
 
-.group-description {
-  margin: 0.25rem 0 0 0;
-  color: #666;
+.group-info p {
+  margin: 0.5rem 0 0 0;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
+}
+
+.assigned-room {
+  color: #4CAF50 !important;
+  font-weight: bold;
 }
 
 .profile-count {
-  background: #28a745;
+  background: #4CAF50;
   color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
   font-weight: bold;
+}
+
+.group-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.edit-btn {
+  background: #2196F3 !important;
+  color: white;
 }
 
 .delete-btn {
-  background: #dc3545 !important;
+  background: #f44336 !important;
   color: white;
-  font-size: 0.8rem;
-  padding: 0.25rem 0.5rem;
 }
 
-/* Messages Section - Matching rooms section styling */
-.messages-section {
-  margin: 2rem 0;
+.group-profiles-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
-.messages-title {
-  color: #333;
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 1.5rem;
-  text-align: center;
-}
-
-.no-messages {
-  text-align: center;
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
   padding: 2rem;
-  color: #666;
-  font-style: italic;
 }
 
-.messages-container {
-  display: grid;
-  gap: 1.5rem;
+.modal-content {
+  background: #2a3f54;
+  border-radius: 12px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
-.message-item {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 1rem;
-  background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.message-header {
+.modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #eee;
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.author-name {
-  font-size: 1rem;
-  font-weight: bold;
-  color: #333;
-}
-
-.message-content {
-  color: #666;
-  font-size: 0.9rem;
-  line-height: 1.5;
+.modal-header h2 {
   margin: 0;
+  color: white;
+  font-size: 1.5rem;
 }
 
-/* Responsive adjustments */
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-section {
+  margin-bottom: 1.5rem;
+}
+
+.form-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.form-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.profiles-grid-modal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.profile-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+.profile-checkbox-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.profile-checkbox-item.selected {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: #4CAF50;
+}
+
+.profile-checkbox-item input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cancel-btn {
+  background: #757575 !important;
+  color: white;
+}
+
+.save-btn {
+  background: #4CAF50 !important;
+  color: white;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
   .group-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 1rem;
   }
-  
-  .group-profiles-grid {
+
+  .form-row {
     flex-direction: column;
   }
-  
-  .message-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+
+  .subjects-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    max-width: 95%;
+  }
+
+  .profiles-grid-modal {
+    grid-template-columns: 1fr;
   }
 }
 </style>
