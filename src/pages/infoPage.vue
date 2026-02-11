@@ -444,445 +444,617 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="layout">
+  <div class="app-container">
     <Sidebar />
+    
     <main class="main-content">
       <Breadcrumbs :breadcrumbs="breadcrumbs" />
-      <div class="form-container">
-        <!-- Success message -->
-        <div v-if="showSuccess" class="success-message">
-            {{ successMessage }}
+      
+      <!-- Header -->
+      <header class="page-header">
+        <div class="header-content">
+          <h1 class="page-title">{{ isEditing ? 'Edit Profile' : 'Create New Profile' }}</h1>
+          <p class="page-subtitle">
+            {{ isEditing ? 'Update profile information and settings' : 'Add a new user profile to the system' }}
+          </p>
         </div>
-        
-        <!-- Title changes based on editing or creating -->
-        
-        
-        <!-- First name input -->
-        <div class="form-group">
-            <label for="firstName" class="name">
-                First Name:
-                <input 
-                    id="firstName"
-                    v-model="profile.firstName"
-                    type="text" 
-                    placeholder="Enter first name"
-                >
-            </label>
-        </div>
-        
-        <!-- Last name input -->
-        <div class="form-group">
-            <label for="lastName" class="name">
-                Last Name:
-                <input 
-                    id="lastName"
-                    v-model="profile.lastName"
-                    type="text" 
-                    placeholder="Enter last name"
-                >
-            </label>
-        </div>
-        
-        <!-- Age input -->
-        <div class="form-group">
-            <label for="age" class="age">
-                Age:
-                <input 
-                    id="age"
-                    v-model.number="profile.age"
-                    type="number" 
-                    min="0" 
-                    max="100"
-                    placeholder="Enter age"
-                >
-            </label>
-        </div>
-<!-- Profile Picture Section -->
-
-<div class="form-group">
-  <label class="avatar-label">Profile Picture:</label>
-  
-  <!-- Current/Preview Avatar Display -->
-  <div class="avatar-display">
-    <div class="avatar-container">
-      <img 
-        v-if="avatarPreview || currentAvatarUrl" 
-        :src="avatarPreview || currentAvatarUrl" 
-        alt="Profile picture"
-        class="avatar-preview"
-      />
-      <div v-else class="avatar-placeholder">
-        <span>No Image</span>
+      </header>
+      
+      <!-- Success message -->
+      <div v-if="showSuccess" class="success-banner">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {{ successMessage }}
       </div>
-    </div>
-  </div>
-  
-  <!-- Upload Controls -->
-  <div class="avatar-controls">
-    <input
-      ref="avatarInputRef"
-      type="file"
-      accept="image/*"
-      @change="handleAvatarSelect"
-      class="file-input"
-      style="display: none;"
-    />
-    
-    <CustomButton
-      name="Choose Image"
-      @click="triggerFileInput"
-      class="choose-image-btn"
-    />
-    
-    <CustomButton
-      v-if="avatarPreview || currentAvatarUrl"
-      name="Remove Image"
-      @click="clearAvatar"
-      class="remove-image-btn"
-    />
-  </div>
-  
-  <!-- Upload Progress -->
-  <div v-if="isUploadingAvatar" class="upload-progress">
-    Uploading image...
-  </div>
-  
-  <!-- Error Display -->
-  <div v-if="avatarError" class="avatar-error">
-    {{ avatarError }}
-  </div>
-</div>
-        <!-- Profession checkboxes -->
-        <div class="form-group">
-            <label class="profession-label">Profession:</label>
-            <div class="checkbox-container">
-                <div 
-                    v-for="profession in professionsOptions" 
-                    :key="profession" 
-                    class="checkbox-item"
-                >
-                    <input 
-                        :id="profession"
-                        v-model="profile.professions"
-                        :value="profession"
-                        type="checkbox"
-                        class="checkbox-input"
-                    >
-                    <label :for="profession" class="checkbox-label">
-                        {{ profession }}
-                    </label>
+      
+      <div class="form-card">
+        <!-- Avatar Section -->
+        <div class="form-section">
+          <h3 class="section-title">Profile Picture</h3>
+          <div class="avatar-section">
+            <div class="avatar-display">
+              <div class="avatar-circle">
+                <img 
+                  v-if="avatarPreview || currentAvatarUrl" 
+                  :src="avatarPreview || currentAvatarUrl" 
+                  alt="Profile picture"
+                  class="avatar-image"
+                />
+                <div v-else class="avatar-placeholder">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
                 </div>
+              </div>
             </div>
+            
+            <div class="avatar-controls">
+              <input
+                ref="avatarInputRef"
+                type="file"
+                accept="image/*"
+                @change="handleAvatarSelect"
+                style="display: none;"
+              />
+              
+              <button @click="triggerFileInput" class="btn btn-secondary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Choose Image
+              </button>
+              
+              <button
+                v-if="avatarPreview || currentAvatarUrl"
+                @click="clearAvatar"
+                class="btn btn-ghost"
+              >
+                Remove
+              </button>
+            </div>
+            
+            <p class="avatar-hint">JPG, PNG, WebP or GIF. Max size 2MB.</p>
+            
+            <div v-if="isUploadingAvatar" class="upload-status">
+              <div class="spinner"></div>
+              Uploading image...
+            </div>
+            
+            <div v-if="avatarError" class="error-message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              {{ avatarError }}
+            </div>
+          </div>
         </div>
-
-        <!-- Profile preview -->
-        <div class="preview" v-if="isProfileFilled">
-  <h3>Profile Preview:</h3>
-  
-  <!-- Add avatar to preview -->
-  <div v-if="avatarPreview || currentAvatarUrl" class="preview-avatar">
-    <img :src="avatarPreview || currentAvatarUrl" alt="Profile picture" class="preview-avatar-img">
-  </div>
-  
-  <p><strong>Name:</strong> {{ profile.firstName }} {{ profile.lastName }}</p>
-  <p><strong>Age:</strong> {{ profile.age }}</p>
-  <p><strong>Selected Professions:</strong> {{ profile.professions.join(', ') || 'None' }}</p>
-  
-  <textBox v-model="profile.message" class="textBox" />
-  
-  <CustomButton 
-    :name="isEditing ? 'Update Profile' : 'Create Profile'" 
-    @click="submitForm" 
-    class="submit-btn" 
-  />
-</div>
+        
+        <!-- Basic Information -->
+        <div class="form-section">
+          <h3 class="section-title">Basic Information</h3>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="firstName" class="form-label">First Name</label>
+              <input 
+                id="firstName"
+                v-model="profile.firstName"
+                type="text" 
+                placeholder="Enter first name"
+                class="form-input"
+              >
+            </div>
+            
+            <div class="form-group">
+              <label for="lastName" class="form-label">Last Name</label>
+              <input 
+                id="lastName"
+                v-model="profile.lastName"
+                type="text" 
+                placeholder="Enter last name"
+                class="form-input"
+              >
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="age" class="form-label">Age</label>
+            <input 
+              id="age"
+              v-model.number="profile.age"
+              type="number" 
+              min="0" 
+              max="100"
+              placeholder="Enter age"
+              class="form-input"
+              style="max-width: 200px;"
+            >
+          </div>
+        </div>
+        
+        <!-- Professions -->
+        <div class="form-section">
+          <h3 class="section-title">Profession</h3>
+          <div class="checkbox-grid">
+            <label 
+              v-for="profession in professionsOptions" 
+              :key="profession" 
+              class="checkbox-card"
+            >
+              <input 
+                :id="profession"
+                v-model="profile.professions"
+                :value="profession"
+                type="checkbox"
+                class="checkbox-input"
+              >
+              <span class="checkbox-label">{{ profession }}</span>
+              <svg class="checkbox-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </label>
+          </div>
+        </div>
+        
+        <!-- Profile Preview -->
+        <div v-if="isProfileFilled" class="preview-section">
+          <h3 class="section-title">Profile Preview</h3>
+          
+          <div class="preview-card">
+            <div v-if="avatarPreview || currentAvatarUrl" class="preview-avatar">
+              <img :src="avatarPreview || currentAvatarUrl" alt="Profile picture">
+            </div>
+            
+            <div class="preview-content">
+              <div class="preview-row">
+                <span class="preview-label">Name:</span>
+                <span class="preview-value">{{ profile.firstName }} {{ profile.lastName }}</span>
+              </div>
+              <div class="preview-row">
+                <span class="preview-label">Age:</span>
+                <span class="preview-value">{{ profile.age }}</span>
+              </div>
+              <div class="preview-row">
+                <span class="preview-label">Professions:</span>
+                <span class="preview-value">{{ profile.professions.join(', ') || 'None' }}</span>
+              </div>
+            </div>
+            
+            <textBox v-model="profile.message" class="preview-message" />
+            
+            <button @click="submitForm" class="btn btn-primary btn-large">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              {{ isEditing ? 'Update Profile' : 'Create Profile' }}
+            </button>
+          </div>
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <style scoped>
-.layout {
+/* Import modern font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.app-container {
   display: flex;
   min-height: 100vh;
+  background: #f5f7fa;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+
 .main-content {
-  margin-left: 70px;
   flex: 1;
-  padding: 32px 24px;
-  background: #1B3C53;
-  min-height: 100vh;
+  margin-left: 70px;
+  padding: 2rem 3rem;
+  max-width: 1400px;
 }
 
-/* Container */
-.form-container {
-    max-width: 500px;
-    margin: 0 auto;
-    padding: 10px;
-    font-family: Arial, sans-serif;
+/* Header */
+.page-header {
+  margin-bottom: 2rem;
 }
-.preview-avatar {
+
+.header-content {
+  max-width: 800px;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+/* Success Banner */
+.success-banner {
   display: flex;
-  justify-content: center;
-  margin-bottom: 15px;
+  align-items: center;
+  gap: 0.75rem;
+  background: #d1fae5;
+  color: #065f46;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #a7f3d0;
+  font-weight: 500;
+  animation: slideDown 0.3s ease-out;
 }
 
-.preview-avatar-img {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #007bff;
-}
-/* Title */
-.title {
-    color: #F9F3EF;
-    text-align: center;
-    margin-bottom: 30px;
-    font-size: 24px;
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* General form group styling */
-.form-group {
-    margin-bottom: 20px;
+/* Form Card */
+.form-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
 }
 
-/* Labels */
-.name, .age, .profession-label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 8px;
-    color: #F9F3EF;
+/* Form Section */
+.form-section {
+  padding: 2rem;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-/* Inputs for text/number */
-.name input, .age input {
-    display: block;
-    width: 100%;
-    padding: 10px;
-    margin-top: 5px;
-    border: 2px solid #ddd;
-    border-radius: 5px;
-    font-size: 16px;
-    box-sizing: border-box;
+.form-section:last-child {
+  border-bottom: none;
 }
 
-/* Input focus */
-.name input:focus, .age input:focus {
-    outline: none;
-    border-color: #007bff;
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 1.5rem;
 }
 
-/* Checkbox grid */
-.checkbox-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
-}
-
-/* Checkbox item styling */
-.checkbox-item {
-    display: flex;
-    align-items: center;
-    padding: 8px;
-    border-radius: 5px;
-    transition: background-color 0.2s;
-}
-
-.checkbox-item:hover {
-    background-color: #000147;
-}
-
-/* Custom checkboxes */
-.checkbox-input {
-    margin-right: 8px;
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-/* Checkbox label */
-.checkbox-label {
-    cursor: pointer;
-    color: #F9F3EF;
-    font-size: 14px;
-}
-
-/* Profile preview box */
-.preview {
-    background-color: #f9f9f9;
-    padding: 15px;
-    border-radius: 8px;
-    margin: 20px 0;
-    border-left: 4px solid #007bff;
-}
-
-.preview h3 {
-    margin-top: 0;
-    color: #333;
-}
-
-.preview p {
-    margin: 8px 0;
-    color: #666;
-}
-
-/* Custom checkbox with ✓ */
-.checkbox-input[type="checkbox"] {
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border: 2px solid #ddd;
-    border-radius: 3px;
-    background-color: white;
-    position: relative;
-    cursor: pointer;
-}
-
-.checkbox-input[type="checkbox"]:checked {
-    background-color: #007bff;
-    border-color: #007bff;
-}
-
-.checkbox-input[type="checkbox"]:checked::after {
-    content: '✓';
-    position: absolute;
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-    left: 2px;
-    top: -1px;
-}
-
-/* Submit button */
-.submit-btn {
-    padding: 12px 24px;
-    margin: 10px 5px 0 0;
-    border: none;
-    border-radius: 5px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    background-color: #007bff;
-    color: white;
-}
-
-.submit-btn:hover {
-    background-color: #0056b3;
-}
-/* Avatar section styling */
-.avatar-label {
-  display: block;
-  font-weight: bold;
-  margin-bottom: 8px;
-  color: #F9F3EF;
+/* Avatar Section */
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
 .avatar-display {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 15px;
+  margin-bottom: 0.5rem;
 }
 
-.avatar-container {
+.avatar-circle {
   width: 120px;
   height: 120px;
   border-radius: 50%;
   overflow: hidden;
-  border: 3px solid #ddd;
-  background: #f5f5f5;
+  border: 3px solid #e2e8f0;
+  background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.avatar-preview {
+.avatar-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
 .avatar-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  background: #e9ecef;
-  color: #6c757d;
-  font-size: 12px;
+  color: #cbd5e1;
 }
 
 .avatar-controls {
   display: flex;
-  gap: 10px;
+  gap: 0.75rem;
+}
+
+.avatar-hint {
+  font-size: 0.875rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.upload-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #3b82f6;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #dbeafe;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  border: 1px solid #fecaca;
+}
+
+/* Form Elements */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: 0.01em;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #0f172a;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-input::placeholder {
+  color: #cbd5e1;
+}
+
+/* Checkbox Grid */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.checkbox-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f8fafc;
+}
+
+.checkbox-card:hover {
+  background: white;
+  border-color: #cbd5e1;
+}
+
+.checkbox-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkbox-input:checked + .checkbox-label {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.checkbox-input:checked ~ .checkbox-icon {
+  opacity: 1;
+  color: #3b82f6;
+}
+
+.checkbox-card:has(.checkbox-input:checked) {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.checkbox-label {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #334155;
+  transition: all 0.2s;
+}
+
+.checkbox-icon {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* Preview Section */
+.preview-section {
+  background: #f8fafc;
+  padding: 2rem;
+}
+
+.preview-card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  border: 1px solid #e2e8f0;
+}
+
+.preview-avatar {
+  display: flex;
   justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: 1.5rem;
 }
 
-.choose-image-btn {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+.preview-avatar img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e2e8f0;
+}
+
+.preview-content {
+  margin-bottom: 1.5rem;
+}
+
+.preview-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.preview-row:last-child {
+  border-bottom: none;
+}
+
+.preview-label {
+  font-weight: 600;
+  color: #64748b;
+  min-width: 120px;
+  font-size: 0.9rem;
+}
+
+.preview-value {
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.preview-message {
+  margin-bottom: 1.5rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
-}
-
-.choose-image-btn:hover {
-  background-color: #218838;
-}
-
-.remove-image-btn {
-  background-color: #dc3545;
-  color: white;
+  transition: all 0.2s;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
+  font-family: inherit;
 }
 
-.remove-image-btn:hover {
-  background-color: #c82333;
+.btn-primary {
+  background: #3b82f6;
+  color: white;
 }
 
-.upload-progress {
-  text-align: center;
-  color: #007bff;
-  font-weight: bold;
-  padding: 8px;
+.btn-primary:hover {
+  background: #2563eb;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.avatar-error {
-  background-color: #f8d7da;
-  color: #721c24;
-  padding: 8px 12px;
-  border: 1px solid #f5c6cb;
-  border-radius: 4px;
-  font-size: 14px;
-  text-align: center;
-}
-/* Success message styling */
-.success-message {
-    background-color: #d4edda;
-    color: #155724;
-    padding: 12px 16px;
-    border: 1px solid #c3e6cb;
-    border-radius: 5px;
-    margin-bottom: 20px;
-    font-weight: 500;
-    animation: fadeIn 0.5s ease-in;
+.btn-secondary {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
 }
 
-/* Fade-in animation */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to   { opacity: 1; transform: translateY(0); }
+.btn-secondary:hover {
+  background: white;
+  border-color: #cbd5e1;
 }
 
-.textBox {
-    border-color: black;
+.btn-ghost {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid transparent;
+}
+
+.btn-ghost:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.btn-large {
+  padding: 0.875rem 2rem;
+  font-size: 1rem;
+  width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    padding: 1.5rem;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+  
+  .form-section {
+    padding: 1.5rem;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .checkbox-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,11 +1,8 @@
--- Create database if it doesn't exist
 CREATE DATABASE IF NOT EXISTS profiles_vue_app;
 USE profiles_vue_app;
 
--- Disable foreign key checks to allow dropping tables in any order
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Drop existing tables if they exist (to start fresh)
 DROP TABLE IF EXISTS profile_profession_members;
 DROP TABLE IF EXISTS professions;
 DROP TABLE IF EXISTS profile_room_members;
@@ -19,10 +16,8 @@ DROP TABLE IF EXISTS group_room_members;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS users;
 
--- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
 
--- Create profiles table (REMOVED professions field)
 CREATE TABLE profiles (
     id VARCHAR(255) PRIMARY KEY,
     firstName VARCHAR(100) NOT NULL,
@@ -35,14 +30,12 @@ CREATE TABLE profiles (
     avatarUrl VARCHAR(255) NULL
 );
 
--- Create professions table (NEW)
 CREATE TABLE professions (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create profile_profession_members table for many-to-many relationship (NEW)
 CREATE TABLE profile_profession_members (
     id VARCHAR(255) PRIMARY KEY,
     profile_id VARCHAR(255) NOT NULL,
@@ -53,7 +46,6 @@ CREATE TABLE profile_profession_members (
     UNIQUE KEY unique_profile_profession (profile_id, profession_id)
 );
 
--- Create subjects table
 CREATE TABLE subjects (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -61,7 +53,6 @@ CREATE TABLE subjects (
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create profile_groups table (keeping existing functionality)
 CREATE TABLE profile_groups (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -70,7 +61,6 @@ CREATE TABLE profile_groups (
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Create group_subjects junction table
 CREATE TABLE group_subjects (
     id VARCHAR(255) PRIMARY KEY,
     group_id VARCHAR(255) NOT NULL,
@@ -81,23 +71,21 @@ CREATE TABLE group_subjects (
     UNIQUE KEY unique_group_subject (group_id, subject_id)
 );
 
--- Create users table
 CREATE TABLE users (
     id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL, -- This should store hashed passwords
-    profile_id VARCHAR(255) NULL, -- Optional link to profiles table
+    password VARCHAR(255) NOT NULL, 
+    profile_id VARCHAR(255) NULL, 
     role ENUM('admin', 'user') DEFAULT 'user',
     is_active BOOLEAN DEFAULT TRUE,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login TIMESTAMP NULL,
     
-    -- Foreign key to link user to their profile (optional)
+   
     FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE SET NULL
 );
 
--- Create rooms table
 CREATE TABLE rooms (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -108,7 +96,6 @@ CREATE TABLE rooms (
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Create notifications table (MOVED after rooms table)
 CREATE TABLE notifications (
     id VARCHAR(255) PRIMARY KEY,
     type ENUM('group_request', 'system', 'profile', 'room', 'general') NOT NULL DEFAULT 'general',
@@ -120,24 +107,20 @@ CREATE TABLE notifications (
     resolution ENUM('approved', 'denied') NULL,
     resolved_at TIMESTAMP NULL,
     
-    -- Related entity references
     profile_id VARCHAR(255) NULL,
     group_id VARCHAR(255) NULL,
     room_id VARCHAR(255) NULL,
     user_id VARCHAR(255) NULL,
     
-    -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    -- Foreign keys
     FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE,
     FOREIGN KEY (group_id) REFERENCES profile_groups(id) ON DELETE CASCADE,
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Create junction table for many-to-many relationship (keeping existing functionality)
 CREATE TABLE profile_group_members (
     id VARCHAR(255) PRIMARY KEY,
     group_id VARCHAR(255) NOT NULL,
@@ -148,7 +131,6 @@ CREATE TABLE profile_group_members (
     UNIQUE KEY unique_membership (group_id, profile_id)
 );
 
--- Create profile_room_members table for room assignments
 CREATE TABLE profile_room_members (
     id VARCHAR(255) PRIMARY KEY,
     room_id VARCHAR(255) NOT NULL,
@@ -161,7 +143,6 @@ CREATE TABLE profile_room_members (
     UNIQUE KEY unique_room_membership (room_id, profile_id)
 );
 
--- Create group_room_members table for group-room assignments
 CREATE TABLE group_room_members (
     id VARCHAR(255) PRIMARY KEY,
     group_id VARCHAR(255) NOT NULL,
@@ -172,7 +153,6 @@ CREATE TABLE group_room_members (
     UNIQUE KEY unique_group_room (group_id, room_id)
 );
 
--- Create indexes for better performance
 CREATE INDEX idx_name ON profiles(firstName, lastName);
 CREATE INDEX idx_created ON profiles(createdAt);
 CREATE INDEX idx_fullname ON profiles(fullName);
@@ -197,7 +177,6 @@ CREATE INDEX idx_notifications_group_id ON notifications(group_id);
 CREATE INDEX idx_notifications_room_id ON notifications(room_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 
--- Insert default professions
 INSERT INTO professions (id, name) VALUES 
 ('prof_1', 'doctor'),
 ('prof_2', 'Software Engineer'),
@@ -206,7 +185,6 @@ INSERT INTO professions (id, name) VALUES
 ('prof_5', 'chef'),
 ('prof_6', 'nurse');
 
--- Insert default subjects
 INSERT INTO subjects (id, name, description) VALUES
 ('subj_1', 'Math', 'Mathematics including algebra, geometry, and calculus'),
 ('subj_2', 'Physics', 'Study of matter, energy, and their interactions'),
@@ -217,12 +195,10 @@ INSERT INTO subjects (id, name, description) VALUES
 ('subj_7', 'Computer Science', 'Study of computers and computational systems'),
 ('subj_8', 'English', 'Study of English language and literature');
 
--- Insert the two default rooms
 INSERT INTO rooms (id, name, description, max_capacity, current_count) VALUES 
 ('room_1', 'Room A', 'First room with capacity for 10 people', 10, 0),
 ('room_2', 'Room B', 'Second room with capacity for 10 people', 10, 0);
 
--- Insert admin user
 INSERT INTO users (id, email, password, role, is_active) VALUES (
     'admin_001', 
     'ismail@gmail.com', 
@@ -234,7 +210,6 @@ INSERT INTO users (id, email, password, role, is_active) VALUES (
     role = 'admin', 
     is_active = true;
 
--- Create triggers to automatically update room current_count
 DELIMITER //
 
 CREATE TRIGGER update_room_count_after_insert
@@ -274,7 +249,6 @@ END//
 
 DELIMITER ;
 
--- Query to get user with their profile information
 SELECT 
     u.*,
     p.firstName,

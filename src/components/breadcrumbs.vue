@@ -46,6 +46,7 @@ defineProps({
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   border-left: 4px solid #007bff;
+  background-color: #1e293b;
 }
 
 .breadcrumb-list {

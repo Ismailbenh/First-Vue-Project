@@ -11,18 +11,21 @@ import fs from 'fs';
 import bcrypt from 'bcrypt';
 import { hash } from 'crypto';
 
-// Resolve __dirname for ESM and load .env relative to the backend directory (or project root)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Attempt to load .env from the project src folder first, then fall back to default
 const envPath = path.resolve(__dirname, '../.env');
 if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
 } else {
   dotenv.config();
 }
-
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_PORT:', process.env.DB_PORT);
+console.log('DB_USER:', process.env.DB_USER);
+console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? '******' : '(empty)');
+console.log('DB_NAME:', process.env.DB_NAME);
+console.log('PORT:', process.env.PORT);
 const hashPassword = async (password) => {
   const saltRounds = 10;
   return await bcrypt.hash(password, saltRounds);
@@ -35,14 +38,12 @@ const generateNotificationId = () => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = 'uploads/avatars'
-    // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true })
     }
     cb(null, uploadDir)
   },
   filename: (req, file, cb) => {
-    // Create unique filename with profile ID
     const profileId = req.params.id || 'temp'
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
     const extension = path.extname(file.originalname)
@@ -52,10 +53,9 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB limit
+    fileSize: 2 * 1024 * 1024 
   },
   fileFilter: (req, file, cb) => {
-    // Server-side validation
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true)
@@ -68,7 +68,6 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Database connection
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -80,7 +79,6 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// ===== BASIC API ROUTES =====
 app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) => {
   const connection = await pool.getConnection()
   
@@ -99,7 +97,6 @@ app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) =
     
     await connection.beginTransaction()
     
-    // Check if profile exists
     const [profileRows] = await connection.query(
       'SELECT * FROM profiles WHERE id = ?',
       [profileId]
@@ -107,7 +104,6 @@ app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) =
     
     if (profileRows.length === 0) {
       await connection.rollback()
-      // Delete uploaded file if profile doesn't exist
       if (fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path)
       }
@@ -121,7 +117,6 @@ app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) =
     
     console.log('Generated avatar URL:', avatarUrl)
     
-    // Delete old avatar file if exists
     const oldAvatarUrl = profileRows[0].avatarUrl
     if (oldAvatarUrl) {
       const oldFilePath = path.join(process.cwd(), oldAvatarUrl)
@@ -131,7 +126,6 @@ app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) =
       }
     }
     
-    // Update profile with new avatar URL
     await connection.query(
       'UPDATE profiles SET avatarUrl = ? WHERE id = ?',
       [avatarUrl, profileId]
@@ -150,7 +144,6 @@ app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) =
   } catch (error) {
     await connection.rollback()
     
-    // Delete uploaded file on error
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path)
     }

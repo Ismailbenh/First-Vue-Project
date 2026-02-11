@@ -1,40 +1,69 @@
 <template>
-  <div class="layout">
+  <div class="app-container">
     <Sidebar />
+    
     <main class="main-content">
       <Breadcrumbs :breadcrumbs="breadcrumbs" />
-      <h1 class="title">Notifications</h1>
+      
+      <!-- Header -->
+      <header class="page-header">
+        <div class="header-content">
+          <h1 class="page-title">Notifications</h1>
+          <p class="page-subtitle">Stay updated with system alerts and <span class="highlight">group requests</span></p>
+        </div>
+      </header>
 
-      <!-- Notification Stats -->
-      <div class="notifications-stats">
+      <!-- Stats Cards -->
+      <div class="stats-grid">
         <div class="stat-card">
-          <h3>Total Notifications</h3>
-          <span class="stat-number">{{ notifications.length }}</span>
+          <div class="stat-header">
+            <span class="stat-label">Total Notifications</span>          
+          </div>
+          <div class="stat-value">{{ notifications.length }}</div>
         </div>
+        
         <div class="stat-card">
-          <h3>Unread</h3>
-          <span class="stat-number unread">{{ unreadCount }}</span>
+          <div class="stat-header">
+            <span class="stat-label">Unread</span>           
+          </div>
+          <div class="stat-value stat-value-unread">{{ unreadCount }}</div>
         </div>
+        
         <div class="stat-card">
-          <h3>Group Join Requests</h3>
-          <span class="stat-number">{{ groupRequestCount }}</span>
+          <div class="stat-header">
+            <span class="stat-label">Group Requests</span>
+          </div>
+          <div class="stat-value">{{ groupRequestCount }}</div>
         </div>
       </div>
 
-      <!-- Notification Actions -->
-      <div class="notification-actions">
-        <CustomButton 
-          name="Mark All as Read" 
-          @click="markAllAsRead"
-          :disabled="unreadCount === 0"
-          class="mark-read-btn"
-        />
-        <CustomButton 
-          name="Clear All Notifications" 
-          @click="clearAllNotifications"
-          :disabled="notifications.length === 0"
-          class="clear-all-btn"
-        />
+      <!-- Actions and Filters -->
+      <div class="actions-section">
+        <div class="action-buttons">
+          <button 
+            @click="markAllAsRead"
+            :disabled="unreadCount === 0"
+            class="btn btn-secondary"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Mark All as Read
+          </button>
+          
+          <button 
+            @click="clearAllNotifications"
+            :disabled="notifications.length === 0"
+            class="btn btn-ghost"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear All
+          </button>
+        </div>
+        
         <select v-model="filterType" class="filter-select">
           <option value="all">All Notifications</option>
           <option value="unread">Unread Only</option>
@@ -45,88 +74,129 @@
 
       <!-- Notifications List -->
       <div class="notifications-container">
-        <div v-if="filteredNotifications.length === 0" class="no-notifications">
-          <div class="empty-state">
-            <div class="empty-icon">🔔</div>
-            <h3>No notifications</h3>
-            <p>{{ getEmptyMessage() }}</p>
+        <div class="container-header">
+          <h2 class="container-title">Recent Activity</h2>
+          <p class="container-subtitle">Showing {{ filteredNotifications.length }} of {{ notifications.length }} notifications</p>
+        </div>
+        
+        <!-- Empty State -->
+        <div v-if="filteredNotifications.length === 0" class="empty-state">
+          <div class="empty-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
           </div>
+          <h3 class="empty-title">{{ getEmptyTitle() }}</h3>
+          <p class="empty-message">{{ getEmptyMessage() }}</p>
         </div>
 
+        <!-- Notifications -->
         <div v-else class="notifications-list">
           <div 
             v-for="notification in filteredNotifications" 
             :key="notification.id"
-            :class="['notification-item', { 'unread': !notification.read, 'urgent': notification.priority === 'high' }]"
+            :class="['notification-item', { 
+              'unread': !notification.read, 
+              'urgent': notification.priority === 'high' 
+            }]"
           >
-            <!-- Notification Header -->
+            <!-- Header -->
             <div class="notification-header">
-              <div class="notification-type">
+              <div class="notification-left">
                 <span :class="['type-badge', notification.type]">
                   {{ getTypeLabel(notification.type) }}
                 </span>
                 <span v-if="notification.priority === 'high'" class="priority-badge">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
                   High Priority
                 </span>
               </div>
-              <div class="notification-meta">
+              
+              <div class="notification-right">
                 <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
                 <button 
                   v-if="!notification.read"
                   @click="markAsRead(notification.id)"
-                  class="mark-read-single"
+                  class="icon-btn"
                   title="Mark as read"
                 >
-                  ✓
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
                 </button>
                 <button 
                   @click="deleteNotification(notification.id)"
-                  class="delete-notification"
-                  title="Delete notification"
+                  class="icon-btn icon-btn-danger"
+                  title="Delete"
                 >
-                  ×
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
                 </button>
               </div>
             </div>
 
-            <!-- Notification Content -->
+            <!-- Content -->
             <div class="notification-content">
               <h4 class="notification-title">{{ notification.title }}</h4>
               <p class="notification-message">{{ notification.message }}</p>
               
-              <!-- Profile Information (if applicable) -->
+              <!-- Profile Info -->
               <div v-if="notification.profileInfo" class="profile-info">
-                <div class="profile-avatar-mini">
+                <div class="profile-avatar">
                   <img 
                     v-if="notification.profileInfo.avatarUrl" 
                     :src="notification.profileInfo.avatarUrl.startsWith('http') ? notification.profileInfo.avatarUrl : `http://localhost:3000/${notification.profileInfo.avatarUrl.replace(/^\/+/, '')}`"
                     :alt="notification.profileInfo.fullName"
-                    class="avatar-mini"
+                    class="avatar-img"
                   />
-                  <div v-else class="avatar-placeholder-mini">
+                  <div v-else class="avatar-placeholder">
                     <span>{{ notification.profileInfo.firstName?.charAt(0) }}{{ notification.profileInfo.lastName?.charAt(0) }}</span>
                   </div>
                 </div>
-                <span class="profile-name">{{ notification.profileInfo.fullName }}</span>
+                <div class="profile-details">
+                  <span class="profile-name">{{ notification.profileInfo.fullName }}</span>
+                  <span class="profile-meta">wants to join this group</span>
+                </div>
               </div>
 
-              <!-- Action Buttons for Group Requests -->
-              <div v-if="notification.type === 'group_request' && !notification.resolved" class="notification-actions-inline">
-                <CustomButton 
-                  name="Approve" 
+              <!-- Action Buttons -->
+              <div v-if="notification.type === 'group_request' && !notification.resolved" class="action-buttons-inline">
+                <button 
                   @click="handleGroupRequest(notification.id, 'approve')"
-                  class="approve-btn"
-                />
-                <CustomButton 
-                  name="Deny" 
+                  class="btn btn-success"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  Approve
+                </button>
+                <button 
                   @click="handleGroupRequest(notification.id, 'deny')"
-                  class="deny-btn"
-                />
+                  class="btn btn-danger"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                  Deny
+                </button>
               </div>
 
               <!-- Resolution Status -->
               <div v-if="notification.resolved" class="resolution-status">
                 <span :class="['status-badge', notification.resolution]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline v-if="notification.resolution === 'approved'" points="20 6 9 17 4 12"></polyline>
+                    <line v-else x1="18" y1="6" x2="6" y2="18"></line>
+                    <line v-if="notification.resolution === 'denied'" x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
                   {{ notification.resolution === 'approved' ? 'Approved' : 'Denied' }}
                 </span>
                 <span class="resolution-time">{{ formatTime(notification.resolvedAt) }}</span>
@@ -375,6 +445,19 @@ function getTypeLabel(type) {
   return labels[type] || 'Notification'
 }
 
+function getEmptyTitle() {
+  switch (filterType.value) {
+    case 'unread':
+      return 'All caught up!'
+    case 'group_request':
+      return 'No pending requests'
+    case 'system':
+      return 'No system alerts'
+    default:
+      return 'No notifications'
+  }
+}
+
 function getEmptyMessage() {
   switch (filterType.value) {
     case 'unread':
@@ -410,114 +493,191 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Layout */
-.layout {
+/* Import modern font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.app-container {
   display: flex;
   min-height: 100vh;
+  background: #f5f7fa;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .main-content {
-  margin-left: 70px;
   flex: 1;
-  padding: 32px 24px;
-  background: #1B3C53;
-  min-height: 100vh;
-  color: #f8f9fa;
+  margin-left: 70px;
+  padding: 2rem 3rem;
 }
 
-.title {
-  color: #ffffff;
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 1.5rem;
-}
-
-/* Stats Cards */
-.notifications-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+/* Header */
+.page-header {
   margin-bottom: 2rem;
 }
 
-.stat-card {
-  background: #234a66;
-  padding: 1.5rem;
-  border-radius: 8px;
-  text-align: center;
-  border: 1px solid #3A6B85;
+.header-content {
+  max-width: 800px;
 }
 
-.stat-card h3 {
-  margin: 0 0 0.5rem 0;
-  color: #F9F3EF;
-  font-size: 0.9rem;
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   font-weight: 500;
 }
 
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #007bff;
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
 }
 
-.stat-number.unread {
-  color: #dc3545;
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
 }
 
-/* Actions */
-.notification-actions {
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.stat-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.stat-icon {
+  color: #cbd5e1;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.stat-value-unread {
+  color: #ef4444;
+}
+
+/* Actions Section */
+.actions-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   margin-bottom: 2rem;
-  align-items: center;
+  flex-wrap: wrap;
 }
 
-.mark-read-btn {
-  background: #28a745 !important;
-  color: white;
-}
-
-.clear-all-btn {
-  background: #dc3545 !important;
-  color: white;
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .filter-select {
-  padding: 0.5rem;
-  border: 1px solid #3A6B85;
-  border-radius: 4px;
-  background: #234a66;
-  color: #F9F3EF;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 /* Notifications Container */
 .notifications-container {
-  background: #234a66;
-  border-radius: 8px;
-  border: 1px solid #3A6B85;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
   overflow: hidden;
 }
 
+.container-header {
+  padding: 1.75rem 2rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.container-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.container-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
 /* Empty State */
-.no-notifications {
-  padding: 3rem;
+.empty-state {
+  padding: 4rem 2rem;
   text-align: center;
 }
 
-.empty-state {
-  color: #F9F3EF;
-}
-
 .empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
+  color: #cbd5e1;
+  margin-bottom: 1.5rem;
 }
 
-.empty-state h3 {
-  margin: 0 0 0.5rem 0;
-  color: #ffffff;
+.empty-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.empty-message {
+  font-size: 0.95rem;
+  color: #64748b;
 }
 
 /* Notifications List */
@@ -527,10 +687,10 @@ onMounted(() => {
 }
 
 .notification-item {
-  padding: 1.5rem;
-  border-bottom: 1px solid #3A6B85;
-  background: #234a66;
-  transition: background-color 0.2s;
+  padding: 1.75rem 2rem;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s;
+  position: relative;
 }
 
 .notification-item:last-child {
@@ -538,16 +698,17 @@ onMounted(() => {
 }
 
 .notification-item:hover {
-  background: #2C5F7A;
+  background: #f8fafc;
 }
 
 .notification-item.unread {
-  border-left: 4px solid #007bff;
-  background: #1e4a5f;
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
 }
 
 .notification-item.urgent {
-  border-left: 4px solid #dc3545;
+  background: #fef2f2;
+  border-left: 4px solid #ef4444;
 }
 
 /* Notification Header */
@@ -556,99 +717,109 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  gap: 1rem;
 }
 
-.notification-type {
+.notification-left,
+.notification-right {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .type-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.025em;
 }
 
 .type-badge.group_request {
-  background: #007bff;
-  color: white;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .type-badge.system {
-  background: #6f42c1;
-  color: white;
+  background: #e0e7ff;
+  color: #5b21b6;
 }
 
 .type-badge.profile {
-  background: #28a745;
-  color: white;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .type-badge.room {
-  background: #17a2b8;
-  color: white;
+  background: #cffafe;
+  color: #155e75;
 }
 
 .priority-badge {
-  background: #dc3545;
-  color: white;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.7rem;
-  font-weight: bold;
-}
-
-.notification-meta {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .notification-time {
-  color: #adb5bd;
-  font-size: 0.8rem;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
-.mark-read-single,
-.delete-notification {
-  background: none;
-  border: none;
-  color: #adb5bd;
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
+.icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
   transition: all 0.2s;
+  color: #64748b;
 }
 
-.mark-read-single:hover {
-  background: #28a745;
-  color: white;
+.icon-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
 }
 
-.delete-notification:hover {
-  background: #dc3545;
-  color: white;
+.icon-btn-danger:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #ef4444;
 }
 
 /* Notification Content */
-.notification-content h4 {
-  margin: 0 0 0.5rem 0;
-  color: #ffffff;
-  font-size: 1.1rem;
+.notification-content {
+  padding-left: 0.25rem;
+}
+
+.notification-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
 }
 
 .notification-message {
-  color: #F9F3EF;
-  margin: 0 0 1rem 0;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.6;
+  margin-bottom: 1rem;
 }
 
 /* Profile Info */
@@ -656,58 +827,60 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 1rem 0;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid #e2e8f0;
 }
 
-.profile-avatar-mini {
-  width: 32px;
-  height: 32px;
+.profile-avatar {
+  flex-shrink: 0;
 }
 
-.avatar-mini {
-  width: 32px;
-  height: 32px;
+.avatar-img {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #3A6B85;
+  border: 2px solid #e2e8f0;
 }
 
-.avatar-placeholder-mini {
-  width: 32px;
-  height: 32px;
+.avatar-placeholder {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: #3A6B85;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  font-weight: bold;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: white;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .profile-name {
-  color: #ffffff;
-  font-weight: 500;
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.95rem;
 }
 
-/* Inline Actions */
-.notification-actions-inline {
+.profile-meta {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+/* Action Buttons Inline */
+.action-buttons-inline {
   display: flex;
   gap: 0.75rem;
   margin-top: 1rem;
-}
-
-.approve-btn {
-  background: #28a745 !important;
-  color: white;
-}
-
-.deny-btn {
-  background: #dc3545 !important;
-  color: white;
 }
 
 /* Resolution Status */
@@ -715,49 +888,142 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
   margin-top: 1rem;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  border: 1px solid #e2e8f0;
 }
 
 .status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .status-badge.approved {
-  background: #28a745;
-  color: white;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .status-badge.denied {
-  background: #dc3545;
-  color: white;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .resolution-time {
-  color: #adb5bd;
-  font-size: 0.8rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  font-family: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: white;
+  border-color: #cbd5e1;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+  border: 1px solid transparent;
+}
+
+.btn-success:hover {
+  background: #059669;
+}
+
+.btn-danger {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+}
+
+.btn-danger:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .notification-actions {
+  .main-content {
+    margin-left: 0;
+    padding: 1.5rem;
+  }
+  
+  .page-title {
+    font-size: 1.75rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .actions-section {
     flex-direction: column;
     align-items: stretch;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .filter-select {
+    width: 100%;
   }
   
   .notification-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
   }
   
-  .notification-actions-inline {
+  .notification-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .action-buttons-inline {
     flex-direction: column;
   }
 }
-  </style>
+</style>

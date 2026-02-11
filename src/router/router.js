@@ -49,12 +49,6 @@ const routes = [
     name: 'infoPage',
   component: () => import('@/pages/infoPage.vue'),
     meta: { requiresAuth: true }
-  },
-  {
-    path: '/filter',
-    name: 'filterPage',
-  component: () => import('@/pages/filterPage.vue'),
-    meta: { requiresAuth: true }
   }
 ]
 

@@ -10,9 +10,6 @@
     <button class="sidebar-btn" @click="goTo('roomsPage')" title="Rooms">
       <RoomsIcon class="sidebar-icon" />
     </button>
-    <button class="sidebar-btn" @click="goTo('filterPage')" title="Filter">
-      <FilterButton class="sidebar-icon" />
-    </button>
     <button class="sidebar-btn notifications-btn" @click="goTo('notificationsPage')" title="Notifications">
       <NotificationIcon class="sidebar-icon" />
       <span v-if="notificationCount > 0" class="notification-badge">{{ notificationCount }}</span>
