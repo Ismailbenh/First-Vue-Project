@@ -329,16 +329,14 @@ onMounted(async () => {
     <main class="main-content">
       <Breadcrumbs :breadcrumbs="breadcrumbs" />
       
-      <!-- Header -->
       <header class="page-header">
         <div class="header-content">
           <h1 class="page-title">Rooms Management</h1>
-          <p class="page-subtitle">Manage room assignments and <span class="highlight">capacity</span></p>
+          <p class="page-subtitle">Manage room assignments and capacity</p>
         </div>
         
       </header>
       
-      <!-- Stats Cards -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-header">
@@ -382,7 +380,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Create Room Form -->
       <transition name="slide-fade">
         <div v-if="isCreatingRoom" class="create-room-card">
           <h2 class="form-title">Create New Room</h2>
@@ -425,7 +422,6 @@ onMounted(async () => {
         </div>
       </transition>
 
-      <!-- Group Assignment Section -->
       <div v-if="profileGroups.length > 0" class="group-assignment-section">
         <button 
           @click="toggleGroupAssignmentMode"
@@ -496,7 +492,6 @@ onMounted(async () => {
       
       
 
-      <!-- Rooms List -->
       <div class="rooms-container">
         <div class="rooms-header">
           <h2 class="section-title">All Rooms</h2>
@@ -552,7 +547,6 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Assigned Groups -->
             <div v-if="room.assignedGroups && room.assignedGroups.length > 0" class="assigned-groups-section">
               <h4 class="subsection-title">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -583,7 +577,6 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Room Members -->
             <div v-if="room.members && room.members.length > 0" class="room-members-section">
               <h4 class="subsection-title">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -631,7 +624,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Edit Room Modal -->
       <transition name="modal-fade">
         <div v-if="isEditingRoom" class="modal-overlay" @click.self="closeEditRoom">
           <div class="modal-content">
@@ -726,13 +718,7 @@ onMounted(async () => {
   font-weight: 400;
 }
 
-.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 500;
-}
+
 
 .create-room-btn {
   display: flex;

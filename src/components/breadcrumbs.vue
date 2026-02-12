@@ -41,7 +41,7 @@ defineProps({
 
 <style scoped>
 .breadcrumb-nav {
-  margin-bottom: 10px;
+  margin-bottom: 20px;
   padding: 12px 16px;
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;

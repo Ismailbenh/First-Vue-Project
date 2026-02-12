@@ -1,5 +1,4 @@
 <script setup>
-// -------------------- Imports --------------------
 import { computed, ref, onMounted } from 'vue'
 import CustomButton from '@/components/profile_requirement/button.vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -66,25 +65,22 @@ const generateId = () => {
 
 const fetchProfessions = async () => {
     try {
-        console.log('Fetching professions from API...') // Debug log
+        console.log('Fetching professions from API...') 
         const response = await fetch('http://localhost:3000/api/professions')
-        console.log('Response status:', response.status) // Debug log
+        console.log('Response status:', response.status) 
         
         if (response.ok) {
             const professions = await response.json()
-            console.log('Raw professions data:', professions) // Debug log
+            console.log('Raw professions data:', professions)
             
-            // Handle the response properly - extract name from each profession object
             professionsOptions.value = professions.map(p => p.name)
-            console.log('Processed professions:', professionsOptions.value) // Debug log
+            console.log('Processed professions:', professionsOptions.value)
         } else {
             console.error('Failed to fetch professions. Status:', response.status)
-            // Fallback to default professions if API fails
             professionsOptions.value = ['Doctor', 'Software Engineer', 'Teacher', 'Electrician', 'Chef', 'Nurse']
         }
     } catch (error) {
         console.error('Error fetching professions:', error)
-        // Fallback to default professions if network error
         professionsOptions.value = ['Doctor', 'Software Engineer', 'Teacher', 'Electrician', 'Chef', 'Nurse']
     }
 }
@@ -128,9 +124,7 @@ const triggerFileInput = () => {
     avatarInputRef.value.click()
   }
 }
-// -------------------- Form submission --------------------
 const submitForm = async () => {
-  // Validation
   if (!profile.value.firstName.trim()) {
     alert('First name is required')
     return
@@ -147,10 +141,8 @@ const submitForm = async () => {
   }
 
   try {
-    // Generate/get profile ID
     const profileId = isEditing.value ? id.value : generateId()
     
-    // Prepare profile data (without avatar initially)
     const profileData = {
       id: profileId,
       firstName: profile.value.firstName.trim(),
@@ -160,12 +152,11 @@ const submitForm = async () => {
         ? profile.value.professions.filter(prof => prof !== '') 
         : [],
       message: profile.value.message?.trim() || '',
-      avatarUrl: currentAvatarUrl.value || null // Keep existing avatar URL if editing
+      avatarUrl: currentAvatarUrl.value || null 
     }
 
     console.log('Submitting profile data:', profileData)
 
-    // STEP 1: Create/update the profile first
     const result = await writeToProfileJson(profileData)
     
     if (!result.success) {
@@ -173,21 +164,17 @@ const submitForm = async () => {
       return
     }
 
-    // STEP 2: Upload avatar AFTER profile exists (only if new image selected)
     if (avatarFile.value) {
       console.log('Uploading avatar for profile ID:', profileId)
       const uploadResult = await uploadAvatar(profileId)
       
       if (uploadResult.success) {
         console.log('Avatar uploaded successfully:', uploadResult.avatarUrl)
-        // Profile is already created, avatar URL will be updated by the server
       } else {
         console.warn('Avatar upload failed, but profile was saved successfully')
-        // Don't fail the entire operation if avatar fails
       }
     }
 
-    // Success
     successMessage.value = isEditing.value 
       ? 'Profile updated successfully!' 
       : 'Profile created successfully!'
@@ -207,14 +194,12 @@ const handleAvatarSelect = (event) => {
   const file = event.target.files[0]
   if (!file) return
   
-  // Enhanced validation
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
   if (!allowedTypes.includes(file.type)) {
     avatarError.value = 'Please select a JPEG, PNG, WebP, or GIF image'
     return
   }
   
-  // Size limit (2MB recommended for avatars)
   if (file.size > 2 * 1024 * 1024) {
     avatarError.value = 'File size must be less than 2MB'
     return
@@ -223,7 +208,6 @@ const handleAvatarSelect = (event) => {
   avatarFile.value = file
   avatarError.value = ''
   
-  // Create preview with error handling
   const reader = new FileReader()
   reader.onload = (e) => {
     avatarPreview.value = e.target.result
@@ -233,11 +217,9 @@ const handleAvatarSelect = (event) => {
   }
   reader.readAsDataURL(file)
 }
-// Your current approach - enhance it:
 const uploadAvatar = async (targetProfileId = null) => {
   if (!avatarFile.value) return { success: false }
   
-  // Use provided profileId or fall back to current id
   const profileId = targetProfileId || id.value
   
   if (!profileId) {
@@ -271,7 +253,6 @@ const uploadAvatar = async (targetProfileId = null) => {
     const result = await response.json()
     console.log('Upload successful:', result)
     
-    // Update current avatar URL
     currentAvatarUrl.value = result.avatarUrl
     
     return { success: true, avatarUrl: result.avatarUrl }
@@ -288,25 +269,20 @@ const clearAvatar = () => {
   avatarFile.value = null
   avatarPreview.value = ''
   avatarError.value = ''
-  // Reset file input
   const fileInput = document.querySelector('#avatar-input')
   if (fileInput) fileInput.value = ''
 }
 
-// -------------------- Lifecycle --------------------
-// Fixed avatar loading logic for the Vue component
 onMounted(async () => {
   console.log('Component mounted')
   console.log('Route params ID:', route.params.id)
   console.log('ID ref value:', id.value)
   
   try {
-    // Always fetch professions first
     console.log('Fetching professions...')
     await fetchProfessions()
     console.log('After fetchProfessions, options:', professionsOptions.value)
     
-    // Check if we're in editing mode
     if (id.value) {
       console.log('Editing mode - ID:', id.value)
       isEditing.value = true
@@ -320,7 +296,6 @@ onMounted(async () => {
           const existing = await response.json()
           console.log('Raw profile data received:', existing)
           
-          // Handle professions array properly
           if (existing.professions) {
             if (Array.isArray(existing.professions) && existing.professions.length > 0 && existing.professions[0].name) {
               existing.professions = existing.professions.map(p => p.name)
@@ -331,16 +306,12 @@ onMounted(async () => {
             existing.professions = []
           }
           
-          // CRITICAL: Handle avatar URL properly
           console.log('Avatar URL from database:', existing.avatarUrl)
           
           if (existing.avatarUrl) {
-            // Make sure the URL is properly formatted
             let avatarUrl = existing.avatarUrl
             
-            // If the URL doesn't start with http, prepend the server URL
             if (!avatarUrl.startsWith('http')) {
-              // Remove leading slash if present to avoid double slashes
               if (avatarUrl.startsWith('/')) {
                 avatarUrl = avatarUrl.substring(1)
               }
@@ -350,7 +321,6 @@ onMounted(async () => {
             console.log('Processed avatar URL:', avatarUrl)
             currentAvatarUrl.value = avatarUrl
             
-            // Verify avatar file exists on server
             try {
               const avatarCheckResponse = await fetch(avatarUrl, { method: 'HEAD' })
               console.log('Avatar file check status:', avatarCheckResponse.status)
@@ -363,19 +333,16 @@ onMounted(async () => {
               }
             } catch (avatarError) {
               console.warn('Could not verify avatar file existence:', avatarError)
-              // Keep the URL anyway, let the img element handle the error
             }
           } else {
             console.log('No avatar URL found in profile data')
             currentAvatarUrl.value = ''
           }
           
-          // Clear any preview since we're loading existing data
           avatarPreview.value = ''
           avatarFile.value = null
           avatarError.value = ''
           
-          // Set the profile data
           console.log('Setting profile data:', existing)
           profile.value = {
             firstName: existing.firstName || '',
@@ -413,7 +380,6 @@ onMounted(async () => {
       console.log('Create new profile mode')
       isEditing.value = false
       
-      // Initialize empty profile for creation
       profile.value = {
         firstName: '',
         lastName: '',
@@ -450,7 +416,6 @@ onMounted(async () => {
     <main class="main-content">
       <Breadcrumbs :breadcrumbs="breadcrumbs" />
       
-      <!-- Header -->
       <header class="page-header">
         <div class="header-content">
           <h1 class="page-title">{{ isEditing ? 'Edit Profile' : 'Create New Profile' }}</h1>
@@ -460,7 +425,6 @@ onMounted(async () => {
         </div>
       </header>
       
-      <!-- Success message -->
       <div v-if="showSuccess" class="success-banner">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
@@ -470,7 +434,6 @@ onMounted(async () => {
       </div>
       
       <div class="form-card">
-        <!-- Avatar Section -->
         <div class="form-section">
           <h3 class="section-title">Profile Picture</h3>
           <div class="avatar-section">
@@ -536,7 +499,6 @@ onMounted(async () => {
           </div>
         </div>
         
-        <!-- Basic Information -->
         <div class="form-section">
           <h3 class="section-title">Basic Information</h3>
           
@@ -579,7 +541,6 @@ onMounted(async () => {
           </div>
         </div>
         
-        <!-- Professions -->
         <div class="form-section">
           <h3 class="section-title">Profession</h3>
           <div class="checkbox-grid">
@@ -603,7 +564,6 @@ onMounted(async () => {
           </div>
         </div>
         
-        <!-- Profile Preview -->
         <div v-if="isProfileFilled" class="preview-section">
           <h3 class="section-title">Profile Preview</h3>
           

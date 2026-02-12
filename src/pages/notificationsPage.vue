@@ -9,7 +9,7 @@
       <header class="page-header">
         <div class="header-content">
           <h1 class="page-title">Notifications</h1>
-          <p class="page-subtitle">Stay updated with system alerts and <span class="highlight">group requests</span></p>
+          <p class="page-subtitle">Stay updated with system alerts and group requests</p>
         </div>
       </header>
 
@@ -538,13 +538,7 @@ onMounted(() => {
   font-weight: 400;
 }
 
-.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 500;
-}
+
 
 /* Stats Grid */
 .stats-grid {

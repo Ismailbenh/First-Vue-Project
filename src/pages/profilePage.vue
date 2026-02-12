@@ -3,7 +3,6 @@ import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import CustomButton from '@/components/profile_requirement/button.vue'
 import { useRouter, useRoute } from 'vue-router'
-import Breadcrumbs from '@/components/breadcrumbs.vue'
 import Sidebar from '@/components/sidebar.vue'
 
 // State management
@@ -162,17 +161,18 @@ onMounted(async () => {
 </script>
 
 <template>
+    
   <div class="app-container">
+    
     <Sidebar />
     
     <main class="main-content">
       
       
-      <!-- Header -->
       <header class="page-header">
         <div class="header-content">
           <h1 class="page-title">ProfileHub</h1>
-          <p class="page-subtitle">Manage user profiles, groups, and room <span class="highlight">assignments</span></p>
+          <p class="page-subtitle">Manage user profiles, groups, and room assignments</p>
         </div>
         <button @click="handleLogout" class="app-badge" title="Close">
         logout
@@ -180,7 +180,6 @@ onMounted(async () => {
         
       </header>
       
-      <!-- Stats Cards -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-header">
@@ -207,7 +206,6 @@ onMounted(async () => {
         </div>
       </div>
       
-      <!-- Search and Filters -->
       <div class="search-section">
         <div class="search-bar">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -246,7 +244,6 @@ onMounted(async () => {
         </div>
       </div>
       
-      <!-- Profiles Table -->
       <div class="table-container">
         <div class="table-header">
           <h2 class="table-title">All Profiles</h2>
@@ -372,13 +369,7 @@ onMounted(async () => {
   font-weight: 400;
 }
 
-.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 500;
-}
+
 
 .app-badge {
   background: #1e293b;

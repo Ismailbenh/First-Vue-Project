@@ -162,6 +162,43 @@ app.post('/api/profiles/:id/avatar', upload.single('avatar'), async (req, res) =
 app.get('/api/test', (req, res) => {
   res.json({ success: true, message: 'API working', db: process.env.DB_NAME });
 });
+
+// Debug route to check profiles
+app.get('/api/debug/profiles', async (req, res) => {
+  try {
+    console.log('Debug: Checking all profiles in database...');
+    
+    const [allProfiles] = await pool.query('SELECT * FROM profiles');
+    console.log('Total profiles in DB:', allProfiles.length);
+    console.log('Profiles:', allProfiles);
+    
+    const [groupMembers] = await pool.query('SELECT * FROM profile_group_members');
+    console.log('Total group memberships:', groupMembers.length);
+    
+    const [unassigned] = await pool.query(`
+      SELECT p.* 
+      FROM profiles p
+      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id
+      WHERE pgm.profile_id IS NULL
+    `);
+    console.log('Unassigned profiles:', unassigned.length);
+    console.log('Unassigned data:', unassigned);
+    
+    res.json({
+      success: true,
+      totalProfiles: allProfiles.length,
+      totalGroupMemberships: groupMembers.length,
+      unassignedCount: unassigned.length,
+      profiles: allProfiles,
+      groupMemberships: groupMembers,
+      unassignedProfiles: unassigned
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/professions', async (req, res) => {
     try {
         const [rows] = await pool.execute('SELECT * FROM professions ORDER BY name');
@@ -1257,6 +1294,8 @@ app.post('/api/rooms/:roomId/groups', async (req, res) => {
 
 app.get('/api/profiles/unassigned', async (req, res) => {
   try {
+    console.log('Fetching unassigned profiles...');
+    
     const [profiles] = await pool.query(`
       SELECT p.* 
       FROM profiles p
@@ -1265,10 +1304,12 @@ app.get('/api/profiles/unassigned', async (req, res) => {
       ORDER BY p.firstName, p.lastName
     `);
     
+    console.log('Unassigned profiles found:', profiles.length, profiles);
+    
     res.json(profiles);
   } catch (error) {
     console.error('Error fetching unassigned profiles:', error);
-    res.status(500).json({ success: false, message: 'Database error' });
+    res.status(500).json({ success: false, message: 'Database error: ' + error.message });
   }
 });
 
@@ -1287,7 +1328,23 @@ app.get('/api/profiles/available', async (req, res) => {
     res.status(500).json({ success: false, message: 'Database error' });
   }
 });
+// Get profiles not in any room (available for assignment)
+app.get('/api/profiles/available', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT p.* 
+      FROM profiles p
+      LEFT JOIN profile_room_members prm ON p.id = prm.profile_id
+      WHERE prm.profile_id IS NULL
+      ORDER BY p.firstName, p.lastName
+    `);
 
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching available profiles:', error);
+    res.status(500).json({ success: false, message: 'Database error' });
+  }
+});
 app.get('/api/profiles/available-for-group/:groupId', async (req, res) => {
   try {
     const [profiles] = await pool.query(`
@@ -1306,75 +1363,7 @@ app.get('/api/profiles/available-for-group/:groupId', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch available profiles' });
   }
 });
-// Get profiles not in any room (available for assignment) - MOVE THIS UP
 
-// Get all profiles for selection
-app.get('/api/profiles/unassigned', async (req, res) => {
-  try {
-    // Get all profiles with their current groups and professions
-    const [profiles] = await pool.query(`
-      SELECT DISTINCT p.*, 
-             GROUP_CONCAT(DISTINCT pg.name) as groups,
-             GROUP_CONCAT(DISTINCT prof.name) as professions
-      FROM profiles p
-      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id
-      LEFT JOIN profile_groups pg ON pgm.group_id = pg.id
-      LEFT JOIN profile_profession_members ppm ON p.id = ppm.profile_id
-      LEFT JOIN professions prof ON ppm.profession_id = prof.id
-      GROUP BY p.id
-      ORDER BY p.firstName, p.lastName
-    `);
-
-    // Transform the results
-    const transformedProfiles = profiles.map(profile => ({
-      ...profile,
-      groups: profile.groups ? profile.groups.split(',') : [],
-      professions: profile.professions ? profile.professions.split(',') : []
-    }));
-
-    res.json(transformedProfiles);
-  } catch (error) {
-    console.error('Error fetching available profiles:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch available profiles'
-    });
-  }
-});
-
-// Get all profiles that can be added to groups
-app.get('/api/profiles/unassigned', async (req, res) => {
-  try {
-    // Get all profiles with their current groups
-    const [profiles] = await pool.query(`
-      SELECT DISTINCT p.*, 
-             GROUP_CONCAT(DISTINCT pg.name) as groups,
-             GROUP_CONCAT(DISTINCT prof.name) as professions
-      FROM profiles p
-      LEFT JOIN profile_group_members pgm ON p.id = pgm.profile_id
-      LEFT JOIN profile_groups pg ON pgm.group_id = pg.id
-      LEFT JOIN profile_profession_members ppm ON p.id = ppm.profile_id
-      LEFT JOIN professions prof ON ppm.profession_id = prof.id
-      GROUP BY p.id
-      ORDER BY p.firstName, p.lastName
-    `);
-
-    // Transform the results
-    const transformedProfiles = profiles.map(profile => ({
-      ...profile,
-      groups: profile.groups ? profile.groups.split(',') : [],
-      professions: profile.professions ? profile.professions.split(',') : []
-    }));
-
-    res.json(transformedProfiles);
-  } catch (error) {
-    console.error('Error fetching available profiles:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch available profiles'
-    });
-  }
-});
 
 // Get all profiles
 // Replace your existing GET /api/profiles endpoint with this corrected version
@@ -1668,23 +1657,7 @@ app.delete('/api/rooms/:roomId/groups/:groupId', async (req, res) => {
   }
 });
 
-// Get profiles not in any room (available for assignment)
-app.get('/api/profiles/available', async (req, res) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT p.* 
-      FROM profiles p
-      LEFT JOIN profile_room_members prm ON p.id = prm.profile_id
-      WHERE prm.profile_id IS NULL
-      ORDER BY p.firstName, p.lastName
-    `);
 
-    res.json(rows);
-  } catch (error) {
-    console.error('Error fetching available profiles:', error);
-    res.status(500).json({ success: false, message: 'Database error' });
-  }
-});
 // ===== ROOM MANAGEMENT - CORRECTIONS POUR ÉVITER RACE CONDITIONS =====
 
 // Get all rooms with member counts
